@@ -1,4 +1,5 @@
 # Register your models here.
+from rest_framework.permissions import IsAdminUser
 from django.contrib import admin
 from .models import (
     Customer,
