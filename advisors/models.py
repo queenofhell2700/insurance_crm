@@ -1,9 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 
-# new stuff
-
-
+"""
 class UserProfile(models.Model):
     phone_number = models.CharField(max_length=15, blank=True, null=True)
     company_name = models.CharField(max_length=255, blank=True, null=True)
@@ -11,10 +9,20 @@ class UserProfile(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
+        return f"{self.user.username} - Profile"""
+
+
+#new stuff
+class UserProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)  # ADD THIS LINE
+    phone_number = models.CharField(max_length=15, blank=True, null=True)
+    company_name = models.CharField(max_length=255, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
         return f"{self.user.username} - Profile"
-
-
-# ...
+#end
 
 
 class Customer(models.Model):
@@ -60,7 +68,6 @@ class FamilyInformation(models.Model):
     def __str__(self):
         return f"{self.name} ({self.relationship}) - {self.customer.full_name}"
 
-    # user = models.ForeignKey(User, on_delete=models.CASCADE)
 
 
 class MedicalDisclosure(models.Model):

@@ -3,6 +3,7 @@ from .views import (
     SignupView,
     LoginView,
     CustomerContextView,
+    QuestionSuggestionsView,   # NEW: added import
     ForgotPasswordView,
     ResetPasswordView,
 )
@@ -24,5 +25,11 @@ urlpatterns = [
         "api/ai/context/<int:customer_id>/",
         CustomerContextView.as_view(),
         name="customer-context",
+    ),
+    # NEW: added this path for Module 3
+    path(
+        "api/ai/question-suggestions/",
+        QuestionSuggestionsView.as_view(),
+        name="question-suggestions",
     ),
 ]

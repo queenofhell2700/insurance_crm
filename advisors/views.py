@@ -1,3 +1,9 @@
+# ===== NEW: imports for Gemini integration =====
+import json
+import google.generativeai as genai
+from django.conf import settings
+# ===== NEW END =====
+
 from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -12,24 +18,117 @@ from .models import Customer
 from .serializers import UserSerializer, LoginSerializer
 
 
+# unchanged from before
 class CustomerContextView(APIView):
     def get(self, request, customer_id):
-        # Security Rule: Filter by assigned_to
-        customer = Customer.objects.get(id=customer_id, assigned_to=request.user)
+        try:
+            customer = Customer.objects.get(id=customer_id, assigned_to=request.user)
+        except Customer.DoesNotExist:
+            return Response(
+                {"status": "error", "message": "Customer not found or access denied"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        cover = customer.insurance_covers.first()
 
         context = {
             "customer_summary": {
                 "name": customer.full_name,
                 "age": customer.age,
                 "city": customer.city,
-                "family_members": customer.family_info.count(),
+                "family_members": customer.family_members.count(),
                 "ped": [d.disease_name for d in customer.medical_disclosures.all()],
-                "existing_cover": customer.insurance_cover.coverage_amount,
+                "existing_cover": float(cover.coverage_amount) if cover else 0,
             }
         }
-        return Response(context)
+        return Response({"status": "success", **context})
 
 
+# ===== CHANGED: was pure rule-based, now calls Gemini first, falls back to rules on any failure =====
+class QuestionSuggestionsView(APIView):
+    def post(self, request):
+        customer_id = request.data.get("customer_id")
+        try:
+            customer = Customer.objects.get(id=customer_id, assigned_to=request.user)
+        except Customer.DoesNotExist:
+            return Response(
+                {"status": "error", "message": "Customer not found or access denied"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        diseases = [d.disease_name for d in customer.medical_disclosures.all()]
+        cover = customer.insurance_covers.first()
+        cover_amount = float(cover.coverage_amount) if cover else 0
+        family_count = customer.family_members.count()
+
+        # ===== NEW: build prompt and call Gemini =====
+        prompt = f"""You are an insurance advisor assistant. Based on this customer profile, suggest 3-5 follow-up questions the advisor should ask, with a reason for each.
+
+Customer:
+- Age: {customer.age}
+- City: {customer.city}
+- Family members: {family_count}
+- Pre-existing diseases: {diseases if diseases else "None declared"}
+- Existing coverage: ₹{cover_amount}
+
+Respond ONLY with valid JSON, no markdown, no backticks, no preamble. Format exactly like this:
+{{"questions": [{{"question": "...", "reason": "..."}}]}}"""
+
+        try:
+            genai.configure(api_key=settings.GEMINI_API_KEY)
+            model = genai.GenerativeModel("gemini-2.0-flash")
+            response = model.generate_content(prompt)
+
+            raw_text = response.text.strip()
+            raw_text = raw_text.replace("```json", "").replace("```", "").strip()
+            ai_data = json.loads(raw_text)
+
+            return Response({
+                "status": "success",
+                "confidence": 0.85,
+                "questions": ai_data.get("questions", []),
+                "source": "gemini"   # confirms real AI response was used
+            })
+        # ===== NEW END =====
+
+        # ===== OLD LOGIC: kept as fallback if Gemini call/parsing fails for any reason =====
+        except Exception as e:
+            questions = []
+
+            if customer.age > 55:
+                questions += [
+                    {"question": "Do you have any pre-existing medical conditions?", "reason": "High age increases health risk relevance."},
+                    {"question": "Have you been hospitalized in the last 2 years?", "reason": "Recent hospitalization affects risk assessment."},
+                ]
+
+            for disease in customer.medical_disclosures.all():
+                questions += [
+                    {"question": f"How long have you been diagnosed with {disease.disease_name}?", "reason": "Disease duration helps assess risk."},
+                    {"question": f"Are you currently on medication for {disease.disease_name}?", "reason": "Medication indicates disease control."},
+                ]
+
+            if family_count > 0:
+                questions.append(
+                    {"question": "Would you prefer floater or individual coverage for your family?", "reason": "Family presence changes coverage structure options."}
+                )
+
+            if cover_amount < 500000:
+                questions.append(
+                    {"question": "What additional coverage amount would you like to explore?", "reason": "Existing cover appears low compared to standard protection needs."}
+                )
+
+            return Response({
+                "status": "success",
+                "confidence": 0.6,
+                "questions": questions,
+                "source": "rule_based_fallback",  # tells you Gemini failed
+                "ai_error": str(e)                # shows why it failed, for debugging
+            })
+        # ===== OLD LOGIC END =====
+# ===== CHANGED END =====
+
+
+# everything below is unchanged
 class SignupView(APIView):
     def post(self, request):
         serializer = UserSerializer(data=request.data)
