@@ -1,8 +1,7 @@
-# ===== NEW: imports for Gemini integration =====
+# new imports for Gemini integration
 import json
 import google.generativeai as genai
 from django.conf import settings
-# ===== NEW END =====
 
 from django.shortcuts import render
 from rest_framework.views import APIView
@@ -18,21 +17,24 @@ from .models import Customer
 from .serializers import UserSerializer, LoginSerializer
 
 
-# unchanged from before
+#changed into the status, msg, 
 class CustomerContextView(APIView):
     def get(self, request, customer_id):
         try:
             customer = Customer.objects.get(id=customer_id, assigned_to=request.user)
         except Customer.DoesNotExist:
             return Response(
-                {"status": "error", "message": "Customer not found or access denied"},
+                {"status": "error", "message": "Customer not found or access denied", "data": None},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
         cover = customer.insurance_covers.first()
 
-        context = {
-            "customer_summary": {
+        return Response({
+            "status": "success",
+            "message": "Customer context retrieved",
+            #here, its returning a detailed description of the customer data, earlier it was a reset link
+            "data": {
                 "name": customer.full_name,
                 "age": customer.age,
                 "city": customer.city,
@@ -40,11 +42,10 @@ class CustomerContextView(APIView):
                 "ped": [d.disease_name for d in customer.medical_disclosures.all()],
                 "existing_cover": float(cover.coverage_amount) if cover else 0,
             }
-        }
-        return Response({"status": "success", **context})
+        })
 
 
-# ===== CHANGED: was pure rule-based, now calls Gemini first, falls back to rules on any failure =====
+#confidence/questions/source/ai_error is now nested under "data"
 class QuestionSuggestionsView(APIView):
     def post(self, request):
         customer_id = request.data.get("customer_id")
@@ -52,7 +53,7 @@ class QuestionSuggestionsView(APIView):
             customer = Customer.objects.get(id=customer_id, assigned_to=request.user)
         except Customer.DoesNotExist:
             return Response(
-                {"status": "error", "message": "Customer not found or access denied"},
+                {"status": "error", "message": "Customer not found or access denied", "data": None},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
@@ -61,18 +62,18 @@ class QuestionSuggestionsView(APIView):
         cover_amount = float(cover.coverage_amount) if cover else 0
         family_count = customer.family_members.count()
 
-        # ===== NEW: build prompt and call Gemini =====
+    #prompt to gemini api
         prompt = f"""You are an insurance advisor assistant. Based on this customer profile, suggest 3-5 follow-up questions the advisor should ask, with a reason for each.
 
-Customer:
-- Age: {customer.age}
-- City: {customer.city}
-- Family members: {family_count}
-- Pre-existing diseases: {diseases if diseases else "None declared"}
-- Existing coverage: ₹{cover_amount}
+    Customer:
+    - Age: {customer.age}
+    - City: {customer.city}
+    - Family members: {family_count}
+    - Pre-existing diseases: {diseases if diseases else "None declared"}
+    - Existing coverage: ₹{cover_amount}
 
-Respond ONLY with valid JSON, no markdown, no backticks, no preamble. Format exactly like this:
-{{"questions": [{{"question": "...", "reason": "..."}}]}}"""
+    Respond ONLY with valid JSON, no markdown, no backticks, no preamble. Format exactly like this:
+    {{"questions": [{{"question": "...", "reason": "..."}}]}}"""
 
         try:
             genai.configure(api_key=settings.GEMINI_API_KEY)
@@ -85,13 +86,14 @@ Respond ONLY with valid JSON, no markdown, no backticks, no preamble. Format exa
 
             return Response({
                 "status": "success",
-                "confidence": 0.85,
-                "questions": ai_data.get("questions", []),
-                "source": "gemini"   # confirms real AI response was used
+                "message": "Questions generated via Gemini",
+                "data": {
+                    "confidence": 0.85,
+                    "questions": ai_data.get("questions", []),
+                    "source": "gemini"
+                }
             })
-        # ===== NEW END =====
 
-        # ===== OLD LOGIC: kept as fallback if Gemini call/parsing fails for any reason =====
         except Exception as e:
             questions = []
 
@@ -119,16 +121,17 @@ Respond ONLY with valid JSON, no markdown, no backticks, no preamble. Format exa
 
             return Response({
                 "status": "success",
-                "confidence": 0.6,
-                "questions": questions,
-                "source": "rule_based_fallback",  # tells you Gemini failed
-                "ai_error": str(e)                # shows why it failed, for debugging
+                "message": "Questions generated via rule-based fallback",
+                "data": {
+                    "confidence": 0.6,
+                    "questions": questions,
+                    "source": "rule_based_fallback",
+                    "ai_error": str(e)
+                }
             })
-        # ===== OLD LOGIC END =====
-# ===== CHANGED END =====
 
 
-# everything below is unchanged
+#token/user_id nested under "data"
 class SignupView(APIView):
     def post(self, request):
         serializer = UserSerializer(data=request.data)
@@ -139,17 +142,21 @@ class SignupView(APIView):
                 {
                     "status": "success",
                     "message": "User created",
-                    "token": token.key,
-                    "user_id": user.id,
+                    "data": {
+                        "token": token.key,
+                        "user_id": user.id,
+                    }
                 },
                 status=status.HTTP_201_CREATED,
             )
         return Response(
-            {"status": "error", "errors": serializer.errors},
+            {"status": "error", "message": "Validation failed", "data": serializer.errors},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
 
+
+#token/user_id nested under "data"
 class LoginView(APIView):
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
@@ -164,21 +171,25 @@ class LoginView(APIView):
                     {
                         "status": "success",
                         "message": "Login successful",
-                        "token": token.key,
-                        "user_id": user.id,
+                        "data": {
+                            "token": token.key,
+                            "user_id": user.id,
+                        }
                     },
                     status=status.HTTP_200_OK,
                 )
             return Response(
-                {"status": "error", "message": "Invalid credentials"},
+                {"status": "error", "message": "Invalid credentials", "data": None},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
         return Response(
-            {"status": "error", "errors": serializer.errors},
+            {"status": "error", "message": "Validation failed", "data": serializer.errors},
             status=status.HTTP_400_BAD_REQUEST,
         )
+# ===== CHANGED END =====
 
 
+#reset link is nested under data
 class ForgotPasswordView(APIView):
     def post(self, request):
         email = request.data.get("email")
@@ -192,17 +203,22 @@ class ForgotPasswordView(APIView):
                 {
                     "status": "success",
                     "message": "Reset link sent",
-                    "reset_link": reset_link,
+                    "data": {
+                        "reset_link": reset_link,
+                    }
                 },
                 status=status.HTTP_200_OK,
             )
         except User.DoesNotExist:
             return Response(
-                {"status": "error", "message": "User not found"},
+                {"status": "error", "message": "User not found", "data": None},
                 status=status.HTTP_404_NOT_FOUND,
             )
+#end of change
 
 
+#here we have nested everything instead of letting it be loose
+# also made sure that the format stays the same for evrything
 class ResetPasswordView(APIView):
     def post(self, request, uid, token):
         try:
@@ -215,16 +231,16 @@ class ResetPasswordView(APIView):
                 user.save()
 
                 return Response(
-                    {"status": "success", "message": "Password reset successful"},
+                    {"status": "success", "message": "Password reset successful", "data": None},
                     status=status.HTTP_200_OK,
                 )
             else:
                 return Response(
-                    {"status": "error", "message": "Invalid token"},
+                    {"status": "error", "message": "Invalid token", "data": None},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
         except:
             return Response(
-                {"status": "error", "message": "Invalid request"},
+                {"status": "error", "message": "Invalid request", "data": None},
                 status=status.HTTP_400_BAD_REQUEST,
             )
