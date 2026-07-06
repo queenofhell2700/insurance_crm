@@ -77,7 +77,9 @@ class QuestionSuggestionsView(APIView):
 
         try:
             genai.configure(api_key=settings.GEMINI_API_KEY)
-            model = genai.GenerativeModel("gemini-2.0-flash")
+            #model = genai.GenerativeModel("gemini-2.0-flash")
+            #model = genai.GenerativeModel("gemini-1.5-flash")
+            model = genai.GenerativeModel("gemini-flash-latest") 
             response = model.generate_content(prompt)
 
             raw_text = response.text.strip()
@@ -128,7 +130,8 @@ class QuestionSuggestionsView(APIView):
                     "source": "rule_based_fallback",
                     "ai_error": str(e)
                 }
-            })
+
+            }, status=status.HTTP_200_OK)
 
 
 #token/user_id nested under "data"
@@ -244,3 +247,52 @@ class ResetPasswordView(APIView):
                 {"status": "error", "message": "Invalid request", "data": None},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+#Module 4 - Missing Information Detection
+class MissingInformationView(APIView):
+    def get(self, request, customer_id):
+        try:
+            customer = Customer.objects.get(id=customer_id, assigned_to=request.user)
+        except Customer.DoesNotExist:
+            return Response(
+                {"status": "error", "message": "Customer not found or access denied", "data": None},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        missing = []
+
+        if customer.premium_budget is None:
+            missing.append("Premium Budget")
+
+        if not customer.preferred_hospitals:
+            missing.append("Preferred Hospitals")
+
+        insurance_covers = customer.insurance_covers.all()
+        if not insurance_covers.exists():
+            missing.append("Existing Insurance Cover")
+        else:
+            for cover in insurance_covers:
+                if not cover.claim_history:
+                    missing.append("Claim History")
+                    break
+
+        for disclosure in customer.medical_disclosures.all():
+            if not disclosure.hospitalization_history:
+                missing.append("Hospitalization History")
+                break
+
+        if not customer.family_members.exists():
+            missing.append("Family Information")
+
+        return Response(
+            {
+                "status": "success",
+                "message": "Missing information identified successfully",
+                "data": {
+                    "customer_id": customer.id,
+                    "missing_information": missing,
+                }
+            },
+            status=status.HTTP_200_OK,
+        )
+# ===== END Module 4 =====

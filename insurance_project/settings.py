@@ -10,14 +10,13 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
-# ===== NEW: load .env and Gemini key =====
+#NEW:load .env and Gemini key
 from dotenv import load_dotenv
 import os
 
 load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-# ===== NEW END =====
 
 from pathlib import Path
 

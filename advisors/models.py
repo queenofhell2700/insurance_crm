@@ -38,6 +38,13 @@ class Customer(models.Model):
     city = models.CharField(max_length=100)
     occupation = models.CharField(max_length=100)
     annual_income = models.DecimalField(max_digits=12, decimal_places=2)
+    annual_income = models.DecimalField(max_digits=12, decimal_places=2)
+
+    #new fields added for the customer model
+    #decimal field is a field to hold decimal numbers for the money
+    premium_budget = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
+    preferred_hospitals = models.TextField(blank=True, null=True)
+
     assigned_to = models.ForeignKey(
         User, on_delete=models.CASCADE
     )  # Security: only assigned user sees this

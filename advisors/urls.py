@@ -6,6 +6,7 @@ from .views import (
     QuestionSuggestionsView,   # NEW: added import
     ForgotPasswordView,
     ResetPasswordView,
+    MissingInformationView,   # NEW: added import for Module 4
 )
 
 urlpatterns = [
@@ -31,5 +32,11 @@ urlpatterns = [
         "api/ai/question-suggestions/",
         QuestionSuggestionsView.as_view(),
         name="question-suggestions",
+    ),
+    # NEW: added this path for Module 4
+    path(
+        "api/ai/missing-information/<int:customer_id>/",
+        MissingInformationView.as_view(),
+        name="missing-information",
     ),
 ]
