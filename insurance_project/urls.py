@@ -29,4 +29,3 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("", include("advisors.urls")),
 ]
-

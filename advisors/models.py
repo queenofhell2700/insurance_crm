@@ -109,3 +109,28 @@ class ExistingInsuranceCover(models.Model):
 
     def __str__(self):
         return f"{self.provider_name} - {self.customer.full_name}"
+
+# MODULE 5: QUALIFICATION INSIGHTS
+class QualificationInsight(models.Model):
+    RISK_BAND_CHOICES = [
+        ("Low", "Low Risk"),
+        ("Moderate", "Moderate Risk"),
+        ("High", "High Risk"),
+    ]
+    
+    #Links QualificationInsight to a Customer (one customer can have many insights)
+    customer = models.ForeignKey(
+        Customer, on_delete=models.CASCADE, related_name="qualification_insights"
+    )
+    risk_band = models.CharField(max_length=20, choices=RISK_BAND_CHOICES)
+    confidence = models.FloatField()
+    insights = models.JSONField()
+    triggered_rules = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.customer.full_name} - {self.risk_band}"

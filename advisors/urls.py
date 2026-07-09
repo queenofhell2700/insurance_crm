@@ -3,10 +3,14 @@ from .views import (
     SignupView,
     LoginView,
     CustomerContextView,
-    QuestionSuggestionsView,   # NEW: added import
+    QuestionSuggestionsView,
     ForgotPasswordView,
     ResetPasswordView,
-    MissingInformationView,   # NEW: added import for Module 4
+    MissingInformationView,
+    customer_detail,
+    generate_qualification_insights,
+    get_qualification_insights,
+    get_qualification_insights_history,
 )
 
 urlpatterns = [
@@ -27,16 +31,34 @@ urlpatterns = [
         CustomerContextView.as_view(),
         name="customer-context",
     ),
-    # NEW: added this path for Module 3
     path(
         "api/ai/question-suggestions/",
         QuestionSuggestionsView.as_view(),
         name="question-suggestions",
     ),
-    # NEW: added this path for Module 4
     path(
         "api/ai/missing-information/<int:customer_id>/",
         MissingInformationView.as_view(),
         name="missing-information",
+    ),
+    path(
+        "api/customer/<int:customer_id>/",
+        customer_detail,
+        name="customer-detail",
+    ),
+    path(
+        "api/ai/qualification-insights/",
+        generate_qualification_insights,
+        name="generate_qualification_insights",
+    ),
+    path(
+        "api/ai/qualification-insights/<int:customer_id>/",
+        get_qualification_insights,
+        name="get_qualification_insights",
+    ),
+    path(
+        "api/ai/qualification-insights-history/<int:customer_id>/",
+        get_qualification_insights_history,
+        name="get_qualification_insights_history",
     ),
 ]

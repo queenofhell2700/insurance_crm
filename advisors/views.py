@@ -16,8 +16,14 @@ from django.utils.encoding import force_bytes, force_str
 from .models import Customer
 from .serializers import UserSerializer, LoginSerializer
 
+#MODULE 5 IMPORTS
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from django.shortcuts import get_object_or_404
+from .models import QualificationInsight
+from .qualification_engine import QualificationEngine
 
-#changed into the status, msg, 
+
 class CustomerContextView(APIView):
     def get(self, request, customer_id):
         try:
@@ -33,7 +39,6 @@ class CustomerContextView(APIView):
         return Response({
             "status": "success",
             "message": "Customer context retrieved",
-            #here, its returning a detailed description of the customer data, earlier it was a reset link
             "data": {
                 "name": customer.full_name,
                 "age": customer.age,
@@ -45,7 +50,6 @@ class CustomerContextView(APIView):
         })
 
 
-#confidence/questions/source/ai_error is now nested under "data"
 class QuestionSuggestionsView(APIView):
     def post(self, request):
         customer_id = request.data.get("customer_id")
@@ -62,7 +66,6 @@ class QuestionSuggestionsView(APIView):
         cover_amount = float(cover.coverage_amount) if cover else 0
         family_count = customer.family_members.count()
 
-    #prompt to gemini api
         prompt = f"""You are an insurance advisor assistant. Based on this customer profile, suggest 3-5 follow-up questions the advisor should ask, with a reason for each.
 
     Customer:
@@ -77,8 +80,6 @@ class QuestionSuggestionsView(APIView):
 
         try:
             genai.configure(api_key=settings.GEMINI_API_KEY)
-            #model = genai.GenerativeModel("gemini-2.0-flash")
-            #model = genai.GenerativeModel("gemini-1.5-flash")
             model = genai.GenerativeModel("gemini-flash-latest") 
             response = model.generate_content(prompt)
 
@@ -134,7 +135,6 @@ class QuestionSuggestionsView(APIView):
             }, status=status.HTTP_200_OK)
 
 
-#token/user_id nested under "data"
 class SignupView(APIView):
     def post(self, request):
         serializer = UserSerializer(data=request.data)
@@ -158,8 +158,6 @@ class SignupView(APIView):
         )
 
 
-
-#token/user_id nested under "data"
 class LoginView(APIView):
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
@@ -189,10 +187,8 @@ class LoginView(APIView):
             {"status": "error", "message": "Validation failed", "data": serializer.errors},
             status=status.HTTP_400_BAD_REQUEST,
         )
-# ===== CHANGED END =====
 
 
-#reset link is nested under data
 class ForgotPasswordView(APIView):
     def post(self, request):
         email = request.data.get("email")
@@ -217,11 +213,8 @@ class ForgotPasswordView(APIView):
                 {"status": "error", "message": "User not found", "data": None},
                 status=status.HTTP_404_NOT_FOUND,
             )
-#end of change
 
 
-#here we have nested everything instead of letting it be loose
-# also made sure that the format stays the same for evrything
 class ResetPasswordView(APIView):
     def post(self, request, uid, token):
         try:
@@ -248,7 +241,7 @@ class ResetPasswordView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-#Module 4 - Missing Information Detection
+
 class MissingInformationView(APIView):
     def get(self, request, customer_id):
         try:
@@ -258,7 +251,6 @@ class MissingInformationView(APIView):
                 {"status": "error", "message": "Customer not found or access denied", "data": None},
                 status=status.HTTP_404_NOT_FOUND,
             )
-
         missing = []
 
         if customer.premium_budget is None:
@@ -295,4 +287,187 @@ class MissingInformationView(APIView):
             },
             status=status.HTTP_200_OK,
         )
-# ===== END Module 4 =====
+
+
+#MODULE 5: QUALIFICATION INSIGHTS
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def customer_detail(request, customer_id):
+    """
+    GET /api/customer/<customer_id>/
+    Fetch customer details by ID
+    """
+    try:
+        customer = get_object_or_404(
+            Customer.objects.filter(assigned_to=request.user), pk=customer_id
+        )
+        
+        return Response(
+            {
+                "status": "success",
+                "message": "Customer details retrieved",
+                "data": {
+                    "id": customer.id,
+                    "full_name": customer.full_name,
+                    "age": customer.age,
+                    "gender": customer.gender,
+                    "city": customer.city,
+                    "occupation": customer.occupation,
+                    "annual_income": str(customer.annual_income),
+                    "premium_budget": str(customer.premium_budget) if customer.premium_budget else None,
+                    "preferred_hospitals": customer.preferred_hospitals,
+                    "family_members_count": customer.family_members.count(),
+                    "medical_disclosures_count": customer.medical_disclosures.count(),
+                    "insurance_covers_count": customer.insurance_covers.count(),
+                }
+            },
+            status=status.HTTP_200_OK,
+        )
+    except Exception as e:
+        return Response(
+            {
+                "status": "error",
+                "message": str(e),
+                "data": None
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def generate_qualification_insights(request):
+    try:
+        customer_id = request.data.get("customer_id")
+
+        if not customer_id:
+            return Response(
+                {
+                    "status": "error",
+                    "message": "customer_id is required",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        customer = get_object_or_404(
+            Customer.objects.filter(assigned_to=request.user), pk=customer_id
+        )
+
+        engine = QualificationEngine(customer)
+        insights_data = engine.evaluate()
+
+        qualification_insight = QualificationInsight.objects.create(
+            customer=customer,
+            risk_band=insights_data["risk_band"],
+            confidence=insights_data["confidence"],
+            insights=insights_data["insights"],
+            triggered_rules=insights_data["triggered_rules"],
+        )
+
+        return Response(
+            {
+                "status": "success",
+                "message": "Qualification insights generated",
+                "data": {
+                    "risk_band": qualification_insight.risk_band,
+                    "confidence": qualification_insight.confidence,
+                    "insights": qualification_insight.insights,
+                    "triggered_rules": qualification_insight.triggered_rules,
+                },
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    except Exception as e:
+        return Response(
+            {
+                "status": "error",
+                "message": str(e),
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_qualification_insights(request, customer_id):
+    try:
+        customer = get_object_or_404(
+            Customer.objects.filter(assigned_to=request.user), pk=customer_id
+        )
+
+        latest_insight = customer.qualification_insights.first()
+
+        if not latest_insight:
+            return Response(
+                {
+                    "status": "error",
+                    "message": "No qualification insights found for this customer. Generate one first.",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        return Response(
+            {
+                "status": "success",
+                "message": "Latest qualification insights retrieved",
+                "data": {
+                    "risk_band": latest_insight.risk_band,
+                    "confidence": latest_insight.confidence,
+                    "insights": latest_insight.insights,
+                    "triggered_rules": latest_insight.triggered_rules,
+                    "created_at": latest_insight.created_at.isoformat(),
+                },
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    except Exception as e:
+        return Response(
+            {
+                "status": "error",
+                "message": str(e),
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_qualification_insights_history(request, customer_id):
+    try:
+        customer = get_object_or_404(
+            Customer.objects.filter(assigned_to=request.user), pk=customer_id
+        )
+
+        insights = customer.qualification_insights.all()
+
+        insights_data = [
+            {
+                "id": insight.id,
+                "risk_band": insight.risk_band,
+                "confidence": insight.confidence,
+                "insights": insight.insights,
+                "triggered_rules": insight.triggered_rules,
+                "created_at": insight.created_at.isoformat(),
+            }
+            for insight in insights
+        ]
+
+        return Response(
+            {
+                "status": "success",
+                "message": "Qualification insights history retrieved",
+                "data": insights_data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    except Exception as e:
+        return Response(
+            {
+                "status": "error",
+                "message": str(e),
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
