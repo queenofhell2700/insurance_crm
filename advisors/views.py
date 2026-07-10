@@ -23,6 +23,8 @@ from django.shortcuts import get_object_or_404
 from .models import QualificationInsight
 from .qualification_engine import QualificationEngine
 
+from .chat_service import get_chat_service #mod 6
+
 
 class CustomerContextView(APIView):
     def get(self, request, customer_id):
@@ -470,4 +472,120 @@ def get_qualification_insights_history(request, customer_id):
                 "message": str(e),
             },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+    
+
+#MODULE 6: AI CHAT SERVICE
+
+#only accpets POST req
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def ai_chat(request): #function to handle AI chat requests
+    """
+    AI Chat Assistant Endpoint
+    
+    POST /api/ai/chat/
+    {
+        "customer_id": 1,
+        "question": "What additional information should I collect?"
+    }
+    """
+    try:
+        # Get request data
+        customer_id = request.data.get('customer_id')
+        advisor_question = request.data.get('question', '').strip() #the .strip removes spaces from beginning/end
+        
+        # if customer_id or question is missing, return error
+        if not customer_id:
+            return Response(
+                {"status": "error", "message": "customer_id is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not advisor_question:
+            return Response(
+                {"status": "error", "message": "question is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Fetch customer (with security: only own customers)
+        customer = get_object_or_404(
+            Customer,
+            id=customer_id,
+            assigned_to=request.user
+        )
+        
+        # Build customer data for AI
+        customer_data = {
+            'id': customer.id,
+            'name': customer.full_name,
+            'age': customer.age,
+            'city': customer.city,
+            'occupation': customer.occupation,
+            'annual_income': customer.annual_income,
+            'family_members_count': customer.family_members.count(),
+            'family_members': [
+                {
+                    'relationship': fm.relationship,
+                    'age': fm.age,
+                    'name': fm.name
+                }
+                for fm in customer.family_members.all()
+            ],
+            'medical_disclosures': [
+                md.disease_name
+                for md in customer.medical_disclosures.all()
+            ],
+            'insurance_covers': [
+                {
+                    'provider_name': ic.provider_name,
+                    'coverage_amount': ic.coverage_amount,
+                    'policy_type': ic.policy_type
+                }
+                for ic in customer.insurance_covers.all()
+            ],
+            'total_coverage': sum(
+                ic.coverage_amount for ic in customer.insurance_covers.all()
+            ),
+            'premium_budget': customer.premium_budget
+        }
+        
+        # Get chat service and generate response
+        chat_service = get_chat_service()
+        ai_response = chat_service.generate_chat_response(
+            customer_data,
+            advisor_question
+        )
+        
+        # Return response
+        return Response(
+            {
+                "status": ai_response['status'],
+                "data": {
+                    "answer": ai_response['answer'],
+                    "model": ai_response['model'],
+                    "question": ai_response['question']
+                }
+            },
+            status=status.HTTP_200_OK
+        )
+    
+    #if customer doesnt exist or not assigned to the user, return 404
+    except Customer.DoesNotExist:
+        return Response(
+            {
+                "status": "error",
+                "message": "Customer not found or not assigned to you"
+            },
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    except Exception as e:
+        logger.error(f"Chat endpoint error: {str(e)}", exc_info=True)
+        return Response(
+            {
+                "status": "error",
+                "message": "An error occurred while processing your request"
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )

@@ -134,3 +134,5 @@ class QualificationInsight(models.Model):
 
     def __str__(self):
         return f"{self.customer.full_name} - {self.risk_band}"
+    
+
