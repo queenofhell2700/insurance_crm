@@ -14,7 +14,7 @@ from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
 from .models import Customer
-from .serializers import UserSerializer, LoginSerializer
+from .serializers import AIOutputVersionSerializer, UserSerializer, LoginSerializer
 
 #MODULE 5 IMPORTS
 from rest_framework.decorators import api_view, permission_classes
@@ -24,6 +24,11 @@ from .models import QualificationInsight
 from .qualification_engine import QualificationEngine
 
 from .chat_service import get_chat_service #mod 6
+
+from .models import AIRequestLog  # NEW - Module 7
+from .serializers import AIRequestLogSerializer  # NEW - Module 7
+from .models import AIOutputVersion  # NEW - Module 8
+from .serializers import AIOutputVersionSerializer  # NEW - Module 8
 
 
 class CustomerContextView(APIView):
@@ -289,6 +294,60 @@ class MissingInformationView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+# Create Customer - NEW
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_customer(request):
+    """
+    POST /api/v1/customers/create/
+    Create a new customer assigned to current user
+    """
+    try:
+        full_name = request.data.get('full_name')
+        age = request.data.get('age')
+        gender = request.data.get('gender')
+        city = request.data.get('city')
+        occupation = request.data.get('occupation')
+        annual_income = request.data.get('annual_income')
+        
+        if not all([full_name, age, gender, city]):
+            return Response({
+                "status": "error",
+                "message": "full_name, age, gender, city are required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        customer = Customer.objects.create(
+            full_name=full_name,
+            age=age,
+            gender=gender,
+            city=city,
+            occupation=occupation or "",
+            annual_income=annual_income or 0,
+            assigned_to=request.user
+        )
+        
+        return Response({
+            "status": "success",
+            "message": "Customer created successfully",
+            "data": {
+                "id": customer.id,
+                "full_name": customer.full_name,
+                "age": customer.age,
+                "gender": customer.gender,
+                "city": customer.city,
+                "occupation": customer.occupation,
+                "annual_income": str(customer.annual_income),
+                "assigned_to": customer.assigned_to.username,
+            }
+        }, status=status.HTTP_201_CREATED)
+        
+    except Exception as e:
+        return Response({
+            "status": "error",
+            "message": str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 #MODULE 5: QUALIFICATION INSIGHTS
@@ -589,3 +648,114 @@ def ai_chat(request): #function to handle AI chat requests
             },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+# Module 7 - AI Logging
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_ai_logs(request, customer_id):
+    """
+    GET /api/v1/customers/<customer_id>/ai-logs/
+    Retrieve all AI logs for a customer
+    """
+    try:
+        customer = get_object_or_404(
+            Customer.objects.filter(assigned_to=request.user), pk=customer_id
+        )
+    except:
+        return Response(
+            {"status": "error", "message": "Customer not found or access denied"},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    logs = AIRequestLog.objects.filter(customer=customer)
+    serializer = AIRequestLogSerializer(logs, many=True)
+    
+    return Response({
+        "status": "success",
+        "message": f"Retrieved {logs.count()} AI logs",
+        "data": serializer.data
+    }, status=status.HTTP_200_OK)
+
+
+# Module 8 - AI Output Versioning
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def save_ai_output_version(request):
+    """
+    POST /api/v1/ai/output-versions/save/
+    Save an AI output version
+    """
+    try:
+        customer_id = request.data.get('customer_id')
+        output_type = request.data.get('output_type')
+        response_json = request.data.get('response_json')
+        model_used = request.data.get('model_used', 'gemini-pro')
+        
+        if not all([customer_id, output_type, response_json]):
+            return Response({
+                "status": "error",
+                "message": "customer_id, output_type, response_json are required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        customer = get_object_or_404(
+            Customer.objects.filter(assigned_to=request.user), pk=customer_id
+        )
+        
+        # Get next version number
+        latest_version = AIOutputVersion.objects.filter(
+            customer=customer,
+            output_type=output_type
+        ).order_by('-version_number').first()
+        
+        next_version = (latest_version.version_number + 1) if latest_version else 1
+        
+        output_version = AIOutputVersion.objects.create(
+            customer=customer,
+            output_type=output_type,
+            version_number=next_version,
+            response_json=response_json,
+            model_used=model_used
+        )
+        
+        serializer = AIOutputVersionSerializer(output_version)
+        
+        return Response({
+            "status": "success",
+            "message": "AI output version saved",
+            "data": serializer.data
+        }, status=status.HTTP_201_CREATED)
+        
+    except Exception as e:
+        return Response({
+            "status": "error",
+            "message": str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_ai_output_versions(request, customer_id):
+    """
+    GET /api/v1/customers/<customer_id>/ai-output-versions/
+    Retrieve all AI output versions for a customer
+    """
+    try:
+        customer = get_object_or_404(
+            Customer.objects.filter(assigned_to=request.user), pk=customer_id
+        )
+    except:
+        return Response({
+            "status": "error",
+            "message": "Customer not found or access denied"
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    versions = AIOutputVersion.objects.filter(customer=customer)
+    serializer = AIOutputVersionSerializer(versions, many=True)
+    
+    return Response({
+        "status": "success",
+        "message": f"Retrieved {versions.count()} AI output versions",
+        "data": serializer.data
+    }, status=status.HTTP_200_OK)

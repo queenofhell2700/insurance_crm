@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.contrib.auth.models import User  # NEW - Module 7
 
 """
 class UserProfile(models.Model):
@@ -135,4 +136,61 @@ class QualificationInsight(models.Model):
     def __str__(self):
         return f"{self.customer.full_name} - {self.risk_band}"
     
+# MODULE 7: AI Logging
+class AIRequestLog(models.Model):
+    LOG_TYPES = [
+        ("chat", "Chat"),
+        ("question_suggestion", "Question Suggestion"),
+        ("qualification_insight", "Qualification Insight"),
+    ]
 
+    customer = models.ForeignKey(
+        Customer, on_delete=models.CASCADE, related_name="ai_logs"
+    )
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    log_type = models.CharField(max_length=50, choices=LOG_TYPES)
+    prompt_text = models.TextField()
+    response_text = models.TextField(blank=True)
+    model_name = models.CharField(max_length=100, default="gemini-flash-latest")
+    status = models.CharField(max_length=20, default="success")
+    error_message = models.TextField(blank=True, null=True)
+    tokens_used = models.IntegerField(blank=True, null=True)
+    response_time = models.FloatField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    log_type = models.CharField(
+    max_length=50,
+    choices=LOG_TYPES,
+    default="chat"
+)
+
+
+    def __str__(self):
+        return f"{self.customer.full_name} - {self.log_type} ({self.status})"
+
+
+# Module 8 - AI Output Versioning
+class AIOutputVersion(models.Model):
+    OUTPUT_TYPES = [
+        ('question_suggestion', 'Question Suggestion'),
+        ('missing_info', 'Missing Information'),
+        ('qualification', 'Qualification Insights'),
+        ('chat', 'AI Chat'),
+    ]
+    
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='ai_output_versions')
+    output_type = models.CharField(max_length=50, choices=OUTPUT_TYPES)
+    version_number = models.IntegerField(default=1)
+    response_json = models.JSONField()
+    model_used = models.CharField(max_length=100, default='gemini-pro')
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        unique_together = ['customer', 'output_type', 'version_number']
+    
+    def __str__(self):
+        return f"{self.output_type} v{self.version_number} - {self.customer.full_name}"
