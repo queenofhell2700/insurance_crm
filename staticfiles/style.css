@@ -1,0 +1,69 @@
+/* Reset */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Body styling for dashboard */
+body {
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    background: #f4f6f9;
+    color: #333;
+    padding: 20px;
+}
+
+/* Dashboard container */
+.dashboard {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* Headings */
+h1 {
+    color: #0078d7;
+    margin-bottom: 20px;
+}
+
+h2 {
+    margin: 20px 0 10px;
+    color: #2c3e50;
+}
+
+/* Stats cards */
+.stats {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.card {
+    background: #0078d7;
+    color: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    flex: 1;
+    text-align: center;
+    font-weight: bold;
+}
+
+/* Table styling */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+th {
+    background: #0078d7;
+    color: #fff;
+    padding: 12px;
+    text-align: left;
+}
+
+td {
+    border: 1px solid #ddd;
+    padding: 12px;
+}

@@ -759,3 +759,27 @@ def get_ai_output_versions(request, customer_id):
         "message": f"Retrieved {versions.count()} AI output versions",
         "data": serializer.data
     }, status=status.HTTP_200_OK)
+
+
+# Dashboard View (simple template render)
+from django.contrib.auth.decorators import login_required
+
+@login_required
+def dashboard(request):
+    # Basic counts
+    customers_count = Customer.objects.filter(assigned_to=request.user).count()
+    logs_count = AIRequestLog.objects.filter(customer__assigned_to=request.user).count()
+    insights_count = QualificationInsight.objects.filter(customer__assigned_to=request.user).count()
+    output_versions_count = AIOutputVersion.objects.filter(customer__assigned_to=request.user).count()
+
+    # Recent customers
+    recent_customers = Customer.objects.filter(assigned_to=request.user).order_by('-id')[:5]
+
+    context = {
+        "customers_count": customers_count,
+        "logs_count": logs_count,
+        "insights_count": insights_count,
+        "output_versions_count": output_versions_count,
+        "recent_customers": recent_customers,
+    }
+    return render(request, "dashboard.html", context)

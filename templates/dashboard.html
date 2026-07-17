@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard</title>
+
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'style.css' %}">
+</head>
+<body>
+    <div class="dashboard">
+        <h1>Insurance CRM Dashboard</h1>
+
+        <!-- Quick Actions -->
+        <div class="actions">
+            <button class="btn">Add Customer</button>
+            <button class="btn">View AI Insights</button>
+            <button class="btn">Check Missing Info</button>
+            <button class="btn">View Logs</button>
+        </div>
+
+        <!-- Quick Stats -->
+        <div class="stats">
+            <div class="card">Total Customers: {{ customers_count }}</div>
+            <div class="card">AI Insights: {{ insights_count }}</div>
+            <div class="card">Missing Info Records: {{ missing_info_count }}</div>
+            <div class="card">AI Logs: {{ logs_count }}</div>
+        </div>
+
+        <!-- Recent Customers -->
+        <h2>Recent Customers</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Age</th>
+                    <th>City</th>
+                    <th>Coverage</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for customer in recent_customers %}
+                <tr>
+                    <td>{{ customer.full_name }}</td>
+                    <td>{{ customer.age }}</td>
+                    <td>{{ customer.city }}</td>
+                    <td>
+                        {% if customer.insurance_covers.first %}
+                            ₹{{ customer.insurance_covers.first.coverage_amount }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button class="btn-small">View</button>
+                        <button class="btn-small">Edit</button>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5">No recent customers</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

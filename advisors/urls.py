@@ -42,6 +42,4 @@ urlpatterns = [
     path("api/v1/token/", obtain_auth_token, name="api_token_auth"),
     path("api/v1/ai/output-versions/save/", save_ai_output_version, name="save_ai_output_version"),  # NEW - Module 8
     path("api/v1/customers/<int:customer_id>/ai-output-versions/", get_ai_output_versions, name="get_ai_output_versions"),  # NEW - Module 8
-    
-    path("api/v1/token/", obtain_auth_token, name="api_token_auth"),
 ]
