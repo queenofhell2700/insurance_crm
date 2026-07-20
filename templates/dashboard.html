@@ -1,67 +1,198 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Dashboard</title>
-
-    {% load static %}
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - AI Advisor Copilot</title>
     <link rel="stylesheet" href="{% static 'style.css' %}">
+    <style>
+        /* all your CSS from the first chunks */
+        .dashboard-container {
+            display: grid;
+            grid-template-columns: 300px 1fr 350px;
+            gap: 2rem;
+            padding: 2rem;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        /* ... rest of your CSS unchanged ... */
+    </style>
 </head>
 <body>
-    <div class="dashboard">
-        <h1>Insurance CRM Dashboard</h1>
-
-        <!-- Quick Actions -->
-        <div class="actions">
-            <button class="btn">Add Customer</button>
-            <button class="btn">View AI Insights</button>
-            <button class="btn">Check Missing Info</button>
-            <button class="btn">View Logs</button>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="/" class="nav-logo">
+                <span class="logo-icon">🤖</span>
+                <span>AI Advisor Copilot</span>
+            </a>
+            <ul class="nav-menu">
+                <li><a href="/" class="nav-link">Dashboard</a></li>
+                <li><a href="/customers/" class="nav-link">Customers</a></li>
+                <li><a href="/policies/" class="nav-link">Policies</a></li>
+                <li class="nav-user">
+                    <span class="user-name">{{ user.get_full_name|default:user.username }}</span>
+                    <a href="/api/v1/auth/logout/" class="nav-link logout-link">Logout</a>
+                </li>
+            </ul>
         </div>
+    </nav>
 
-        <!-- Quick Stats -->
-        <div class="stats">
-            <div class="card">Total Customers: {{ customers_count }}</div>
-            <div class="card">AI Insights: {{ insights_count }}</div>
-            <div class="card">Missing Info Records: {{ missing_info_count }}</div>
-            <div class="card">AI Logs: {{ logs_count }}</div>
-        </div>
-
-        <!-- Recent Customers -->
-        <h2>Recent Customers</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Age</th>
-                    <th>City</th>
-                    <th>Coverage</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for customer in recent_customers %}
-                <tr>
-                    <td>{{ customer.full_name }}</td>
-                    <td>{{ customer.age }}</td>
-                    <td>{{ customer.city }}</td>
-                    <td>
-                        {% if customer.insurance_covers.first %}
-                            ₹{{ customer.insurance_covers.first.coverage_amount }}
-                        {% else %}
-                            -
-                        {% endif %}
-                    </td>
-                    <td>
-                        <button class="btn-small">View</button>
-                        <button class="btn-small">Edit</button>
-                    </td>
-                </tr>
-                {% empty %}
-                <tr><td colspan="5">No recent customers</td></tr>
+    <div class="main-container">
+        {% if messages %}
+            <div class="alerts">
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }}">
+                        {{ message }}
+                        <button class="alert-close" onclick="this.parentElement.style.display='none';">&times;</button>
+                    </div>
                 {% endfor %}
-            </tbody>
-        </table>
+            </div>
+        {% endif %}
+
+        <div class="dashboard-container">
+            <div class="dashboard-section">
+                {% if selected_customer %}
+                    <div class="customer-summary">
+                        <h2>📋 Customer Summary</h2>
+                        <div class="customer-name">{{ selected_customer.full_name }}</div>
+                        <div class="customer-city">{{ selected_customer.city|default:"Not specified" }}</div>
+
+                        <div class="summary-field">
+                            <div class="summary-label">Age</div>
+                            <div class="summary-value">
+                                {{ selected_customer.age }}
+                                {% if selected_customer.age > 55 %}
+                                    <span class="badge badge-age">High Age (>55)</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="summary-field">
+                            <div class="summary-label">Family</div>
+                            <div class="summary-value">{{ family_count|default:"0" }} Members</div>
+                        </div>
+
+                        <div class="summary-field">
+                            <div class="summary-label">Existing Cover</div>
+                            <div class="summary-value">₹{{ selected_customer.existing_cover|default:"0" }}</div>
+                        </div>
+
+                        {% if ped_list %}
+                            <div class="summary-field">
+                                <div class="summary-label">Pre-Existing Diseases</div>
+                                <div class="summary-value">
+                                    {% for ped in ped_list %}
+                                        <span class="badge badge-info">{{ ped }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% endif %}
+
+                        {% if missing_info %}
+                            <div class="missing-section">
+                                <div class="summary-label">Missing Information</div>
+                                {% for item in missing_info %}
+                                    <div class="missing-item">{{ item }}</div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <div class="empty-state">
+                        <p>👤 Select a customer to view details</p>
+                        <a href="/customers/" class="select-customer-btn">Browse Customers</a>
+                    </div>
+                {% endif %}
+            </div>
+
+            <div class="dashboard-section">
+                {% if selected_customer and qualification_insight %}
+                    <div class="qualification-card">
+                        <div class="risk-band-header">
+                            <span class="risk-band-title">Risk Band Analysis</span>
+                            <span class="risk-badge risk-badge-{{ qualification_insight.risk_band|lower }}">
+                                {{ qualification_insight.risk_band }}
+                            </span>
+                        </div>
+
+                        <div class="confidence-box">
+                            <div class="confidence-label">Confidence Score</div>
+                            <div class="confidence-value">{{ qualification_insight.confidence|floatformat:0 }}%</div>
+                        </div>
+
+                        <ul class="insights-list">
+                            {% for insight in qualification_insight.insights %}
+                                <li>{{ insight }}</li>
+                            {% endfor %}
+                        </ul>
+
+                        {% if recommended_questions %}
+                            <div class="recommended-questions">
+                                <div class="recommended-header">
+                                    <span>⚡ Recommended Copilot Questions</span>
+                                    <button class="generate-btn">Generated Just Now</button>
+                                </div>
+                                {% for question in recommended_questions %}
+                                    <div class="question-item">
+                                        <div class="question-text">{{ question.question }}</div>
+                                        <div class="question-reason">{{ question.reason }}</div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <div class="empty-state">
+                        <p>📊 Select a customer to view qualification insights</p>
+                    </div>
+                {% endif %}
+            </div>
+
+            <div class="dashboard-section">
+                {% if selected_customer %}
+                    <div class="chat-assistant">
+                        <div class="chat-header">💬 Advisor Chat Assistant</div>
+                        <div class="chat-messages" id="chatMessages">
+                            <div class="chat-message">
+                                <div class="message-bubble assistant">
+                                    👋 Hi! I'm your AI advisor assistant. Ask me anything about this customer's profile.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="chat-input-group">
+                            <input 
+                                type="text" 
+                                class="chat-input" 
+                                id="chatInput"
+                                placeholder="Ask a question..."
+                                data-customer-id="{{ selected_customer.id }}"
+                            />
+                            <button class="chat-send-btn" onclick="sendChatMessage()">Send</button>
+                        </div>
+                        <div class="output-versions">
+                            <strong>📝 Output Versions:</strong>
+                            {% if ai_output_versions %}
+                                {% for version in ai_output_versions %}
+                                    <div class="version-item">
+                                        <span class="version-badge">v{{ version.version_number }}</span>
+                                        <span>{{ version.created_at|date:"M d, H:i" }}</span>
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="version-item">No versions yet</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="empty-state">
+                        <p>💬 Chat will be available after selecting a customer</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
     </div>
+
+    <script src="{% static 'script.js' %}"></script>
 </body>
 </html>

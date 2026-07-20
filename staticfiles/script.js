@@ -1,57 +1,120 @@
-const API_BASE_URL = "http://127.0.0.1:8000/api/v1";
+// script.js - Central authentication and API helper functions
 
-const loginForm = document.getElementById("loginForm");
-if (loginForm) {
-    loginForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const email = document.getElementById("email").value;
-        const password = document.getElementById("password").value;
-        const username = email.split('@')[0];
+class AuthManager {
+    static TOKEN_KEY = 'authToken';
 
-        const response = await fetch(`${API_BASE_URL}/auth/login/`, {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({username, password}),
+    // Save token to localStorage
+    static setToken(token) {
+        localStorage.setItem(this.TOKEN_KEY, token);
+    }
+
+    // Get token from localStorage
+    static getToken() {
+        return localStorage.getItem(this.TOKEN_KEY);
+    }
+
+    // Remove token (logout)
+    static clearToken() {
+        localStorage.removeItem(this.TOKEN_KEY);
+    }
+
+    // Check if user is authenticated
+    static isAuthenticated() {
+        return !!this.getToken();
+    }
+
+    // Decode JWT token (simple base64 decode, not cryptographically secure)
+    static decodeToken() {
+        const token = this.getToken();
+        if (!token) return null;
+        
+        try {
+            const payload = token.split('.')[1];
+            return JSON.parse(atob(payload));
+        } catch (e) {
+            return null;
+        }
+    }
+
+    // Get username from token
+    static getUsername() {
+        const decoded = this.decodeToken();
+        return decoded?.username || 'User';
+    }
+}
+
+class APIClient {
+    static BASE_URL = '/api/v1';
+
+    // Fetch with auth header
+    static async fetch(endpoint, options = {}) {
+        const token = AuthManager.getToken();
+        const headers = {
+            'Content-Type': 'application/json',
+            ...options.headers
+        };
+
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(`${this.BASE_URL}${endpoint}`, {
+            ...options,
+            headers
         });
 
-        const data = await response.json();
-        if (response.ok) {
-            localStorage.setItem("token", data.data.token);
-            localStorage.setItem("user_id", data.data.user_id);
-            window.location.href = "/dashboard/";
-        } else {
-            alert("Login failed: " + JSON.stringify(data.data));
+        if (response.status === 401) {
+            // Token expired or invalid
+            AuthManager.clearToken();
+            window.location.href = '/login/';
+            return null;
         }
-    });
-}
 
-const signupForm = document.getElementById("signupForm");
-if (signupForm) {
-    signupForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const name = document.getElementById("name").value;
-        const email = document.getElementById("email").value;
-        const password = document.getElementById("password").value;
-        const username = email.split('@')[0];
+        return response;
+    }
 
-        const response = await fetch(`${API_BASE_URL}/auth/signup/`, {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({username, email, password, name}),
+    // GET request
+    static async get(endpoint) {
+        const response = await this.fetch(endpoint, { method: 'GET' });
+        return response?.json() || null;
+    }
+
+    // POST request
+    static async post(endpoint, data) {
+        const response = await this.fetch(endpoint, {
+            method: 'POST',
+            body: JSON.stringify(data)
         });
+        return response?.json() || null;
+    }
 
-        const data = await response.json();
-        if (response.ok) {
-            alert("Signup successful!");
-            window.location.href = "/login/";
-        } else {
-            alert("Signup failed: " + JSON.stringify(data));
+    // PUT request
+    static async put(endpoint, data) {
+        const response = await this.fetch(endpoint, {
+            method: 'PUT',
+            body: JSON.stringify(data)
+        });
+        return response?.json() || null;
+    }
+
+    // DELETE request
+    static async delete(endpoint) {
+        const response = await this.fetch(endpoint, { method: 'DELETE' });
+        return response?.json() || null;
+    }
+}
+
+// Page load checks
+document.addEventListener('DOMContentLoaded', function() {
+    // If on dashboard, check auth
+    if (window.location.pathname.includes('/dashboard/')) {
+        if (!AuthManager.isAuthenticated()) {
+            window.location.href = '/login/';
         }
-    });
-}
+    }
 
-function logout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user_id");
-    window.location.href = "/login/";
-}
+    // If on login/signup but already authenticated, redirect to dashboard
+    if ((window.location.pathname.includes('/login/') || window.location.pathname.includes('/signup/')) && AuthManager.isAuthenticated()) {
+        window.location.href = '/dashboard/';
+    }
+});

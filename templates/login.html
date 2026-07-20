@@ -1,34 +1,79 @@
-{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Insurance CRM - Login</title>
-
+    <title>Sign In - AI Advisor Copilot</title>
     {% load static %}
     <link rel="stylesheet" href="{% static 'auth.css' %}">
-
 </head>
-<body>
-    <div class="container">
-        <div class="login-box">
-            <h1>Insurance CRM</h1>
-            <h2>Login</h2>
-            <form id="loginForm">
-                <div class="form-group">
-                    <label for="email">Email:</label>
-                    <input type="email" id="email" name="email" required>
+<body class="auth-body">
+    <div class="auth-container">
+        <div class="auth-box">
+            <div class="auth-header">
+                <div class="auth-logo">🤖</div>
+                <h1>AI Advisor Copilot</h1>
+                <p class="subtitle">Advisor Intelligence for Financial Managers</p>
+            </div>
+
+            {% if form.errors %}
+                <div class="alerts">
+                    <p style="color:red;">Invalid username or password</p>
                 </div>
+            {% endif %}
+
+            <form method="post" action="{% url 'login' %}" class="auth-form">
+                {% csrf_token %}
+                
                 <div class="form-group">
-                    <label for="password">Password:</label>
-                    <input type="password" id="password" name="password" required>
+                    <label for="id_username">USERNAME</label>
+                    <div class="input-wrapper">
+                        <span class="input-icon">👤</span>
+                        <input 
+                            type="text" 
+                            id="id_username" 
+                            name="username" 
+                            placeholder="Enter your username"
+                            required
+                            class="form-input"
+                        />
+                    </div>
                 </div>
-                <button type="submit" class="btn btn-primary">Login</button>
+
+                <div class="form-group">
+                    <label for="id_password">PASSWORD</label>
+                    <div class="input-wrapper">
+                        <input 
+                            type="password" 
+                            id="id_password" 
+                            name="password" 
+                            placeholder="••••••••"
+                            required
+                            class="form-input"
+                        />
+                        <button type="button" class="password-toggle" onclick="togglePassword('id_password')">👁️</button>
+                    </div>
+                    <a href="#" class="forgot-password">Forgot Password?</a>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-block">
+                    Sign In →
+                </button>
             </form>
-            <p>Don't have an account? <a href="/signup/">Sign up here</a></p>
+
+            <div class="auth-footer">
+                <p>Don't have an account? <a href="{% url 'signup' %}">Sign Up</a></p>
+            </div>
+        </div>
+
+        <div class="auth-background">
+            <div>
+                <h2 style="font-size: 28px; margin-bottom: 1rem;">Welcome Back</h2>
+                <p style="font-size: 14px; line-height: 1.6;">Access your AI-powered advisor dashboard and get instant insights for your customers.</p>
+            </div>
         </div>
     </div>
+
     <script src="{% static 'script.js' %}"></script>
 </body>
 </html>

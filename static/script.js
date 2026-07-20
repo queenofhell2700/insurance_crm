@@ -1,57 +1,80 @@
-const API_BASE_URL = "http://127.0.0.1:8000/api/v1";
+// script.js - Session-based auth helper (simplified for Django sessions)
 
-const loginForm = document.getElementById("loginForm");
-if (loginForm) {
-    loginForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const email = document.getElementById("email").value;
-        const password = document.getElementById("password").value;
-        const username = email.split('@')[0];
+class APIClient {
+    static BASE_URL = '/api/v1';
 
-        const response = await fetch(`${API_BASE_URL}/auth/login/`, {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({username, password}),
+    // Fetch with CSRF token for Django
+    static async fetch(endpoint, options = {}) {
+        const headers = {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': this.getCSRFToken(),
+            ...options.headers
+        };
+
+        const response = await fetch(`${this.BASE_URL}${endpoint}`, {
+            ...options,
+            headers,
+            credentials: 'include'  // Include session cookies
         });
 
-        const data = await response.json();
-        if (response.ok) {
-            localStorage.setItem("token", data.data.token);
-            localStorage.setItem("user_id", data.data.user_id);
-            window.location.href = "/dashboard/";
-        } else {
-            alert("Login failed: " + JSON.stringify(data.data));
+        if (response.status === 401) {
+            // Session expired
+            window.location.href = '/login/';
+            return null;
         }
-    });
-}
 
-const signupForm = document.getElementById("signupForm");
-if (signupForm) {
-    signupForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const name = document.getElementById("name").value;
-        const email = document.getElementById("email").value;
-        const password = document.getElementById("password").value;
-        const username = email.split('@')[0];
+        return response;
+    }
 
-        const response = await fetch(`${API_BASE_URL}/auth/signup/`, {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({username, email, password, name}),
+    // Get CSRF token from cookie
+    static getCSRFToken() {
+        const name = 'csrftoken';
+        let cookieValue = '';
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    // GET request
+    static async get(endpoint) {
+        const response = await this.fetch(endpoint, { method: 'GET' });
+        return response?.json() || null;
+    }
+
+    // POST request
+    static async post(endpoint, data) {
+        const response = await this.fetch(endpoint, {
+            method: 'POST',
+            body: JSON.stringify(data)
         });
+        return response?.json() || null;
+    }
 
-        const data = await response.json();
-        if (response.ok) {
-            alert("Signup successful!");
-            window.location.href = "/login/";
-        } else {
-            alert("Signup failed: " + JSON.stringify(data));
-        }
-    });
+    // PUT request
+    static async put(endpoint, data) {
+        const response = await this.fetch(endpoint, {
+            method: 'PUT',
+            body: JSON.stringify(data)
+        });
+        return response?.json() || null;
+    }
+
+    // DELETE request
+    static async delete(endpoint) {
+        const response = await this.fetch(endpoint, { method: 'DELETE' });
+        return response?.json() || null;
+    }
 }
 
-function logout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user_id");
-    window.location.href = "/login/";
+// Helper to display messages
+function showMessage(message, type = 'info') {
+    console.log(`[${type.toUpperCase()}] ${message}`);
 }

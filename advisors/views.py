@@ -3,13 +3,14 @@ import json
 import google.generativeai as genai
 from django.conf import settings
 
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 from django.contrib.auth.models import User
-from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate, login
+from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
@@ -30,6 +31,108 @@ from .serializers import AIRequestLogSerializer  # NEW - Module 7
 from .models import AIOutputVersion  # NEW - Module 8
 from .serializers import AIOutputVersionSerializer  # NEW - Module 8
 
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_http_methods
+
+
+# ===== LOGIN VIEW (FOR DJANGO AUTH - NOT REST API) =====
+@require_http_methods(["GET", "POST"])
+def login_view(request):
+    """Handle user login with Django's built-in auth form"""
+    if request.method == "POST":
+        print("\n=== LOGIN DEBUG ===")
+        print(f"POST data keys: {list(request.POST.keys())}")
+        print(f"Username: {request.POST.get('username')}")
+        print(f"Password: {request.POST.get('password')}")
+        
+        form = AuthenticationForm(request, data=request.POST)
+        print(f"Form is valid: {form.is_valid()}")
+        print(f"Form errors: {form.errors}")
+        
+        if form.is_valid():
+            user = form.get_user()
+            print(f"User authenticated: {user}")
+            login(request, user)
+            print("Redirecting to dashboard...")
+            return redirect('dashboard')
+        else:
+            print("Rendering login form with errors")
+            return render(request, 'login.html', {'form': form})
+    else:
+        form = AuthenticationForm()
+    
+    return render(request, 'login.html', {'form': form})
+
+# ===== SIGNUP VIEW (FOR DJANGO AUTH - NOT REST API) =====
+@require_http_methods(["GET", "POST"])
+def signup_view(request):
+    """Handle user signup with form validation"""
+    if request.method == "POST":
+        username = request.POST.get('username')
+        email = request.POST.get('email')
+        password1 = request.POST.get('password1')
+        password2 = request.POST.get('password2')
+        
+        errors = []
+        
+        # Validation
+        if not username or not email or not password1 or not password2:
+            errors.append("All fields are required.")
+        elif len(username) < 3:
+            errors.append("Username must be at least 3 characters long.")
+        elif User.objects.filter(username=username).exists():
+            errors.append("Username already exists.")
+        elif User.objects.filter(email=email).exists():
+            errors.append("Email already exists.")
+        elif password1 != password2:
+            errors.append("Passwords do not match.")
+        elif len(password1) < 8:
+            errors.append("Password must be at least 8 characters long.")
+        
+        if errors:
+            return render(request, 'signup.html', {'errors': errors})
+        
+        # Create user
+        user = User.objects.create_user(
+            username=username,
+            email=email,
+            password=password1
+        )
+        
+        # Authenticate and log in the user
+        user = authenticate(request, username=username, password=password1)
+        login(request, user)
+        
+        # Redirect to dashboard
+        return redirect('dashboard')
+    
+    return render(request, 'signup.html')
+
+
+# ===== DASHBOARD VIEW =====
+@login_required(login_url='login')
+def dashboard(request):
+    """Render dashboard for authenticated users"""
+    # Basic counts
+    customers_count = Customer.objects.filter(assigned_to=request.user).count()
+    logs_count = AIRequestLog.objects.filter(customer__assigned_to=request.user).count()
+    insights_count = QualificationInsight.objects.filter(customer__assigned_to=request.user).count()
+    output_versions_count = AIOutputVersion.objects.filter(customer__assigned_to=request.user).count()
+
+    # Recent customers
+    recent_customers = Customer.objects.filter(assigned_to=request.user).order_by('-id')[:5]
+
+    context = {
+        "customers_count": customers_count,
+        "logs_count": logs_count,
+        "insights_count": insights_count,
+        "output_versions_count": output_versions_count,
+        "recent_customers": recent_customers,
+    }
+    return render(request, "dashboard.html", context)
+
+
+# ===== REST API VIEWS (KEEP ALL UNCHANGED) =====
 
 class CustomerContextView(APIView):
     def get(self, request, customer_id):
@@ -640,7 +743,6 @@ def ai_chat(request): #function to handle AI chat requests
         )
     
     except Exception as e:
-        logger.error(f"Chat endpoint error: {str(e)}", exc_info=True)
         return Response(
             {
                 "status": "error",
@@ -759,27 +861,3 @@ def get_ai_output_versions(request, customer_id):
         "message": f"Retrieved {versions.count()} AI output versions",
         "data": serializer.data
     }, status=status.HTTP_200_OK)
-
-
-# Dashboard View (simple template render)
-from django.contrib.auth.decorators import login_required
-
-@login_required
-def dashboard(request):
-    # Basic counts
-    customers_count = Customer.objects.filter(assigned_to=request.user).count()
-    logs_count = AIRequestLog.objects.filter(customer__assigned_to=request.user).count()
-    insights_count = QualificationInsight.objects.filter(customer__assigned_to=request.user).count()
-    output_versions_count = AIOutputVersion.objects.filter(customer__assigned_to=request.user).count()
-
-    # Recent customers
-    recent_customers = Customer.objects.filter(assigned_to=request.user).order_by('-id')[:5]
-
-    context = {
-        "customers_count": customers_count,
-        "logs_count": logs_count,
-        "insights_count": insights_count,
-        "output_versions_count": output_versions_count,
-        "recent_customers": recent_customers,
-    }
-    return render(request, "dashboard.html", context)
