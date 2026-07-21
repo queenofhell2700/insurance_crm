@@ -27,7 +27,7 @@
                 </div>
             {% endif %}
 
-            <form method="POST" class="auth-form">
+            <form method="POST" action="{% url 'signup' %}" class="auth-form">
                 {% csrf_token %}
 
                 <div class="form-row">
