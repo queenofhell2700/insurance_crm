@@ -18,9 +18,16 @@ from .views import (
     create_customer,  # NEW - missing endpoint
     save_ai_output_version,  # NEW - Module 8
     get_ai_output_versions,  # NEW - Module 8
+    customers_list,  # NEW - Customers page
+    policies_list,  # NEW - Policies page
 )
 
 urlpatterns = [
+    # Page routes (Django templates)
+    path("customers/", customers_list, name="customers"),
+    path("policies/", policies_list, name="policies"),
+    
+    # API routes
     path("api/v1/auth/signup/", SignupView.as_view(), name="api_signup"),
     path("api/v1/auth/login/", LoginView.as_view(), name="api_login"),
     path("api/v1/auth/forgot-password/", ForgotPasswordView.as_view(), name="api_forgot_password"),

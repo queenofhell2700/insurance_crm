@@ -32,7 +32,10 @@
                 <li><a href="/policies/" class="nav-link">Policies</a></li>
                 <li class="nav-user">
                     <span class="user-name">{{ user.get_full_name|default:user.username }}</span>
-                    <a href="/api/v1/auth/logout/" class="nav-link logout-link">Logout</a>
+                    <form method="POST" action="/logout/" style="display: inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="nav-link logout-link" style="background: none; border: none; cursor: pointer;">Logout</button>
+                    </form>
                 </li>
             </ul>
         </div>
@@ -192,7 +195,8 @@
             </div>
         </div>
     </div>
-
-    <script src="{% static 'script.js' %}"></script>
+    <script src="{% static 'dashboard.js' %}"></script>
+</body>
+</html>
 </body>
 </html>

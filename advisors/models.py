@@ -39,7 +39,6 @@ class Customer(models.Model):
     city = models.CharField(max_length=100)
     occupation = models.CharField(max_length=100)
     annual_income = models.DecimalField(max_digits=12, decimal_places=2)
-    annual_income = models.DecimalField(max_digits=12, decimal_places=2)
 
     #new fields added for the customer model
     #decimal field is a field to hold decimal numbers for the money
@@ -159,11 +158,6 @@ class AIRequestLog(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    log_type = models.CharField(
-    max_length=50,
-    choices=LOG_TYPES,
-    default="chat"
-)
 
 
     def __str__(self):

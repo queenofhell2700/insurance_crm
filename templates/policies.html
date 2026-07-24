@@ -1,0 +1,138 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Policies - AI Advisor Copilot</title>
+    <link rel="stylesheet" href="{% static 'style.css' %}">
+    <style>
+        .policies-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .policies-header {
+            margin-bottom: 2rem;
+        }
+
+        .policies-header h1 {
+            font-size: 2rem;
+            color: #333;
+            margin-bottom: 0.5rem;
+        }
+
+        .policies-header p {
+            color: #999;
+            font-size: 1rem;
+        }
+
+        .coming-soon {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 8px;
+            padding: 4rem 2rem;
+            text-align: center;
+            color: white;
+            margin-top: 2rem;
+        }
+
+        .coming-soon-icon {
+            font-size: 5rem;
+            margin-bottom: 1rem;
+        }
+
+        .coming-soon h2 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .coming-soon p {
+            font-size: 1.1rem;
+            margin: 0.5rem 0;
+            opacity: 0.9;
+        }
+
+        .features-list {
+            margin-top: 2rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            color: #333;
+        }
+
+        .feature-item {
+            padding: 1rem;
+            border-left: 4px solid #667eea;
+            background: #f9f9f9;
+            border-radius: 4px;
+        }
+
+        .feature-item strong {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="/" class="nav-logo">
+                <span class="logo-icon">🤖</span>
+                <span>AI Advisor Copilot</span>
+            </a>
+            <ul class="nav-menu">
+                <li><a href="/dashboard/" class="nav-link">Dashboard</a></li>
+                <li><a href="/customers/" class="nav-link">Customers</a></li>
+                <li><a href="/policies/" class="nav-link">Policies</a></li>
+                <li class="nav-user">
+                    <span class="user-name">{{ user.get_full_name|default:user.username }}</span>
+                    <form method="POST" action="/logout/" style="display: inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="nav-link logout-link" style="background: none; border: none; cursor: pointer;">Logout</button>
+                    </form>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <div class="policies-container">
+            <div class="policies-header">
+                <h1>📋 Policies</h1>
+                <p>Manage insurance policies and coverage</p>
+            </div>
+
+            <div class="coming-soon">
+                <div class="coming-soon-icon">🚀</div>
+                <h2>Coming Soon</h2>
+                <p>Policy management features are under development</p>
+                <p>We're building powerful tools to help you manage policies more effectively</p>
+            </div>
+
+            <div class="features-list">
+                <div class="feature-item">
+                    <strong>Policy Listing</strong>
+                    View and manage all customer policies in one place
+                </div>
+                <div class="feature-item">
+                    <strong>Policy Recommendations</strong>
+                    Get AI-powered recommendations for policy upgrades
+                </div>
+                <div class="feature-item">
+                    <strong>Coverage Analysis</strong>
+                    Analyze coverage gaps and optimization opportunities
+                </div>
+                <div class="feature-item">
+                    <strong>Policy Comparison</strong>
+                    Compare policies side-by-side for better decision making
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

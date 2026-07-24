@@ -1,0 +1,234 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customers - AI Advisor Copilot</title>
+    <link rel="stylesheet" href="{% static 'style.css' %}">
+    <style>
+        .customers-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .customers-header {
+            margin-bottom: 2rem;
+        }
+
+        .customers-header h1 {
+            font-size: 2rem;
+            color: #333;
+            margin-bottom: 0.5rem;
+        }
+
+        .customers-header p {
+            color: #999;
+            font-size: 1rem;
+        }
+
+        .customers-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .customer-card {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .customer-card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+            border-color: #2196F3;
+        }
+
+        .customer-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 1rem;
+        }
+
+        .customer-card-name {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 0.25rem;
+        }
+
+        .customer-card-city {
+            font-size: 0.9rem;
+            color: #999;
+        }
+
+        .customer-card-badge {
+            background: #f0f0f0;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            color: #666;
+        }
+
+        .customer-card-details {
+            margin: 1rem 0;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            padding: 1rem 0;
+            border-top: 1px solid #f0f0f0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .detail-label {
+            font-size: 0.75rem;
+            color: #999;
+            text-transform: uppercase;
+            margin-bottom: 0.25rem;
+        }
+
+        .detail-value {
+            font-size: 1rem;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .customer-card-footer {
+            margin-top: 1rem;
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn-select {
+            flex: 1;
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 0.75rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.2s ease;
+        }
+
+        .btn-select:hover {
+            background: #1976D2;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+
+        .empty-state p {
+            margin: 0.5rem 0;
+        }
+
+        .create-customer-btn {
+            background: #4CAF50;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-block;
+            margin-top: 1rem;
+        }
+
+        .create-customer-btn:hover {
+            background: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="/" class="nav-logo">
+                <span class="logo-icon">🤖</span>
+                <span>AI Advisor Copilot</span>
+            </a>
+            <ul class="nav-menu">
+                <li><a href="/dashboard/" class="nav-link">Dashboard</a></li>
+                <li><a href="/customers/" class="nav-link">Customers</a></li>
+                <li><a href="/policies/" class="nav-link">Policies</a></li>
+                <li class="nav-user">
+                    <span class="user-name">{{ user.get_full_name|default:user.username }}</span>
+                    <form method="POST" action="/logout/" style="display: inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="nav-link logout-link" style="background: none; border: none; cursor: pointer;">Logout</button>
+                    </form>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <div class="customers-container">
+            <div class="customers-header">
+                <h1>👥 Customers</h1>
+                <p>Manage and review your customer profiles</p>
+            </div>
+
+            {% if customers %}
+                <div class="customers-grid">
+                    {% for customer in customers %}
+                        <div class="customer-card">
+                            <div class="customer-card-name">{{ customer.full_name }}</div>
+                            <div class="customer-card-city">📍 {{ customer.city|default:"Not specified" }}</div>
+
+                            <div class="customer-card-details">
+                                <div class="detail-item">
+                                    <div class="detail-label">Age</div>
+                                    <div class="detail-value">{{ customer.age }} years</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">Gender</div>
+                                    <div class="detail-value">{{ customer.gender|default:"N/A" }}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">Occupation</div>
+                                    <div class="detail-value">{{ customer.occupation|default:"N/A" }}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">Family Members</div>
+                                    <div class="detail-value">{{ customer.family_members.count }}</div>
+                                </div>
+                            </div>
+
+                            <div class="customer-card-footer">
+                                <a href="/dashboard/?customer_id={{ customer.id }}" class="btn-select">📊 View Dashboard</a>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="empty-state">
+                    <div class="empty-state-icon">👤</div>
+                    <p>No customers yet</p>
+                    <p style="font-size: 0.9rem; color: #ccc;">Add your first customer through the admin panel or API to get started.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

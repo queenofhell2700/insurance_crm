@@ -109,25 +109,87 @@ def signup_view(request):
     return render(request, 'signup.html')
 
 
-# ===== DASHBOARD VIEW =====
+# ===== LOGOUT VIEW (NEW) =====
+def logout_view(request):
+    """Handle user logout"""
+    logout(request)
+    return redirect('login')
+
+# ===== DASHBOARD VIEW (UPDATED) =====
 @login_required(login_url='login')
 def dashboard(request):
-    """Render dashboard for authenticated users"""
-    # Basic counts
-    customers_count = Customer.objects.filter(assigned_to=request.user).count()
+    """Render dashboard for authenticated users with customer selection"""
+    
+    # Get all customers for this advisor
+    customers = Customer.objects.filter(assigned_to=request.user).order_by('-id')
+    customers_count = customers.count()
     logs_count = AIRequestLog.objects.filter(customer__assigned_to=request.user).count()
     insights_count = QualificationInsight.objects.filter(customer__assigned_to=request.user).count()
     output_versions_count = AIOutputVersion.objects.filter(customer__assigned_to=request.user).count()
-
-    # Recent customers
-    recent_customers = Customer.objects.filter(assigned_to=request.user).order_by('-id')[:5]
-
+    
+    # Get selected customer (from query param or first customer)
+    selected_customer = None
+    family_count = 0
+    ped_list = []
+    missing_info = []
+    qualification_insight = None
+    ai_output_versions = []
+    
+    customer_id = request.GET.get('customer_id')
+    if customer_id:
+        try:
+            selected_customer = Customer.objects.get(id=customer_id, assigned_to=request.user)
+            
+            # Get customer details
+            family_count = selected_customer.family_members.count()
+            ped_list = [d.disease_name for d in selected_customer.medical_disclosures.all()]
+            
+            # Get latest qualification insight
+            qualification_insight = selected_customer.qualification_insights.first()
+            
+            # Get AI output versions for this customer
+            ai_output_versions = AIOutputVersion.objects.filter(customer=selected_customer).order_by('-created_at')[:5]
+            
+            # Get missing information
+            if selected_customer.premium_budget is None:
+                missing_info.append("Premium Budget")
+            
+            if not selected_customer.preferred_hospitals:
+                missing_info.append("Preferred Hospitals")
+            
+            insurance_covers = selected_customer.insurance_covers.all()
+            if not insurance_covers.exists():
+                missing_info.append("Existing Insurance Cover")
+            else:
+                for cover in insurance_covers:
+                    if not cover.claim_history:
+                        missing_info.append("Claim History")
+                        break
+            
+            for disclosure in selected_customer.medical_disclosures.all():
+                if not disclosure.hospitalization_history:
+                    missing_info.append("Hospitalization History")
+                    break
+            
+            if not selected_customer.family_members.exists():
+                missing_info.append("Family Information")
+        
+        except Customer.DoesNotExist:
+            pass
+    
     context = {
         "customers_count": customers_count,
         "logs_count": logs_count,
         "insights_count": insights_count,
         "output_versions_count": output_versions_count,
-        "recent_customers": recent_customers,
+        "recent_customers": customers[:5],
+        "all_customers": customers,  # NEW - For sidebar listing
+        "selected_customer": selected_customer,  # NEW
+        "family_count": family_count,  # NEW
+        "ped_list": ped_list,  # NEW
+        "missing_info": missing_info,  # NEW
+        "qualification_insight": qualification_insight,  # NEW
+        "ai_output_versions": ai_output_versions,  # NEW
     }
     return render(request, "dashboard.html", context)
 
@@ -861,3 +923,13 @@ def get_ai_output_versions(request, customer_id):
         "message": f"Retrieved {versions.count()} AI output versions",
         "data": serializer.data
     }, status=status.HTTP_200_OK)
+
+#login stuff
+@login_required(login_url='login')
+def customers_list(request):
+    customers = Customer.objects.filter(assigned_to=request.user).order_by('-id')
+    return render(request, 'customers.html', {'customers': customers, 'customers_count': customers.count()})
+
+@login_required(login_url='login')
+def policies_list(request):
+    return render(request, 'policies.html', {'policies': [], 'policies_count': 0})
