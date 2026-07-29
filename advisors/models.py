@@ -2,18 +2,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.contrib.auth.models import User  # NEW - Module 7
 
-"""
-class UserProfile(models.Model):
-    phone_number = models.CharField(max_length=15, blank=True, null=True)
-    company_name = models.CharField(max_length=255, blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
-    def __str__(self):
-        return f"{self.user.username} - Profile"""
-
-
-#new stuff
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)  # ADD THIS LINE
     phone_number = models.CharField(max_length=15, blank=True, null=True)
@@ -23,7 +12,6 @@ class UserProfile(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - Profile"
-#end
 
 
 class Customer(models.Model):
@@ -38,7 +26,7 @@ class Customer(models.Model):
     gender = models.CharField(max_length=1, choices=GENDER_CHOICES)
     city = models.CharField(max_length=100)
     occupation = models.CharField(max_length=100)
-    annual_income = models.DecimalField(max_digits=12, decimal_places=2)
+    annual_income = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
 
     #new fields added for the customer model
     #decimal field is a field to hold decimal numbers for the money

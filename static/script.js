@@ -78,3 +78,66 @@ class APIClient {
 function showMessage(message, type = 'info') {
     console.log(`[${type.toUpperCase()}] ${message}`);
 }
+
+
+// Chat functionality
+function sendChatMessage() {
+    const input = document.getElementById('chatInput');
+    const messagesContainer = document.getElementById('chatMessages');
+    const question = input.value.trim();
+    const customerId = input.dataset.customerId;
+    if (!question || !customerId) return;
+
+    // Show user message
+    appendMessage('user', question);
+    input.value = '';
+
+    // Show loading
+    appendMessage('assistant', '? Thinking...');
+
+    // Call API
+    fetch('/api/v1/ai/chat/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': APIClient.getCSRFToken()
+        },
+        body: JSON.stringify({ customer_id: customerId, question: question })
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Remove loading message (last child)
+        const messages = messagesContainer.querySelectorAll('.message-bubble');
+        if (messages.length > 0 &&
+            messages[messages.length-1].textContent.includes('?')) {
+            messages[messages.length-1].remove();
+        }
+        if (data.status === 'success') {
+            appendMessage('assistant', data.data.answer);
+        } else {
+            appendMessage('assistant', '? Error: ' + (data.message || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        appendMessage('assistant', '? Failed to reach server.');
+    });
+}
+
+function appendMessage(role, text) {
+    const container = document.getElementById('chatMessages');
+    const div = document.createElement('div');
+    div.className = 'chat-message';
+    div.innerHTML = `<div class="message-bubble ${role}">${text}</div>`;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+}
+
+// Allow pressing Enter to send
+document.addEventListener('DOMContentLoaded', function() {
+    const input = document.getElementById('chatInput');
+    if (input) {
+        input.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') sendChatMessage();
+        });
+    }
+});

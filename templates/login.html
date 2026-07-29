@@ -16,11 +16,17 @@
                 <p class="subtitle">Advisor Intelligence for Financial Managers</p>
             </div>
 
+
             {% if form.errors %}
-                <div class="alerts">
-                    <p style="color:red;">Invalid username or password</p>
-                </div>
+            <div class="alerts">
+            {% for field, errors in form.errors.items %}
+            {% for error in errors %}
+            <div class="alert alert-error">{{ error }}</div>
+            {% endfor %}
+            {% endfor %}
+            </div>
             {% endif %}
+
 
             <form method="POST" action="{% url 'login' %}" class="auth-form">
                 {% csrf_token %}

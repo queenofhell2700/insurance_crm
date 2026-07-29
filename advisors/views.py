@@ -3,6 +3,10 @@ import json
 import google.generativeai as genai
 from django.conf import settings
 
+# ADDED: Logger import
+import logging
+logger = logging.getLogger(__name__)
+
 from django.shortcuts import render, redirect
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -34,34 +38,22 @@ from .serializers import AIOutputVersionSerializer  # NEW - Module 8
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
 
+from django.contrib.auth import authenticate, login, logout
 
-# ===== LOGIN VIEW (FOR DJANGO AUTH - NOT REST API) =====
-@require_http_methods(["GET", "POST"])
-def login_view(request):
-    """Handle user login with Django's built-in auth form"""
-    if request.method == "POST":
-        print("\n=== LOGIN DEBUG ===")
-        print(f"POST data keys: {list(request.POST.keys())}")
-        print(f"Username: {request.POST.get('username')}")
-        print(f"Password: {request.POST.get('password')}")
-        
-        form = AuthenticationForm(request, data=request.POST)
-        print(f"Form is valid: {form.is_valid()}")
-        print(f"Form errors: {form.errors}")
-        
-        if form.is_valid():
-            user = form.get_user()
-            print(f"User authenticated: {user}")
-            login(request, user)
-            print("Redirecting to dashboard...")
-            return redirect('dashboard')
-        else:
-            print("Rendering login form with errors")
-            return render(request, 'login.html', {'form': form})
-    else:
-        form = AuthenticationForm()
-    
-    return render(request, 'login.html', {'form': form})
+# ===== ADDED: Django's Built-in LoginView =====
+from django.contrib.auth.views import LoginView
+
+
+# ===== REPLACED: CustomLoginView (Django's built-in, replaces custom login_view) =====
+class CustomLoginView(LoginView):
+    """
+    Use Django's built-in LoginView for reliability and best practices.
+    Replaces the previous custom login_view function that had manual auth handling and debug logging.
+    """
+    template_name = 'login.html'
+    redirect_authenticated_user = True
+    success_url = '/dashboard/'
+
 
 # ===== SIGNUP VIEW (FOR DJANGO AUTH - NOT REST API) =====
 @require_http_methods(["GET", "POST"])
@@ -72,9 +64,9 @@ def signup_view(request):
         email = request.POST.get('email')
         password1 = request.POST.get('password1')
         password2 = request.POST.get('password2')
-        
+
         errors = []
-        
+
         # Validation
         if not username or not email or not password1 or not password2:
             errors.append("All fields are required.")
@@ -88,24 +80,24 @@ def signup_view(request):
             errors.append("Passwords do not match.")
         elif len(password1) < 8:
             errors.append("Password must be at least 8 characters long.")
-        
+
         if errors:
             return render(request, 'signup.html', {'errors': errors})
-        
+
         # Create user
         user = User.objects.create_user(
             username=username,
             email=email,
             password=password1
         )
-        
+
         # Authenticate and log in the user
         user = authenticate(request, username=username, password=password1)
         login(request, user)
-        
+
         # Redirect to dashboard
         return redirect('dashboard')
-    
+
     return render(request, 'signup.html')
 
 
@@ -119,14 +111,14 @@ def logout_view(request):
 @login_required(login_url='login')
 def dashboard(request):
     """Render dashboard for authenticated users with customer selection"""
-    
+
     # Get all customers for this advisor
     customers = Customer.objects.filter(assigned_to=request.user).order_by('-id')
     customers_count = customers.count()
     logs_count = AIRequestLog.objects.filter(customer__assigned_to=request.user).count()
     insights_count = QualificationInsight.objects.filter(customer__assigned_to=request.user).count()
     output_versions_count = AIOutputVersion.objects.filter(customer__assigned_to=request.user).count()
-    
+
     # Get selected customer (from query param or first customer)
     selected_customer = None
     family_count = 0
@@ -134,29 +126,29 @@ def dashboard(request):
     missing_info = []
     qualification_insight = None
     ai_output_versions = []
-    
+
     customer_id = request.GET.get('customer_id')
     if customer_id:
         try:
             selected_customer = Customer.objects.get(id=customer_id, assigned_to=request.user)
-            
+
             # Get customer details
             family_count = selected_customer.family_members.count()
             ped_list = [d.disease_name for d in selected_customer.medical_disclosures.all()]
-            
+
             # Get latest qualification insight
             qualification_insight = selected_customer.qualification_insights.first()
-            
+
             # Get AI output versions for this customer
             ai_output_versions = AIOutputVersion.objects.filter(customer=selected_customer).order_by('-created_at')[:5]
-            
+
             # Get missing information
             if selected_customer.premium_budget is None:
                 missing_info.append("Premium Budget")
-            
+
             if not selected_customer.preferred_hospitals:
                 missing_info.append("Preferred Hospitals")
-            
+
             insurance_covers = selected_customer.insurance_covers.all()
             if not insurance_covers.exists():
                 missing_info.append("Existing Insurance Cover")
@@ -165,18 +157,18 @@ def dashboard(request):
                     if not cover.claim_history:
                         missing_info.append("Claim History")
                         break
-            
+
             for disclosure in selected_customer.medical_disclosures.all():
                 if not disclosure.hospitalization_history:
                     missing_info.append("Hospitalization History")
                     break
-            
+
             if not selected_customer.family_members.exists():
                 missing_info.append("Family Information")
-        
+
         except Customer.DoesNotExist:
             pass
-    
+
     context = {
         "customers_count": customers_count,
         "logs_count": logs_count,
@@ -252,12 +244,38 @@ class QuestionSuggestionsView(APIView):
 
         try:
             genai.configure(api_key=settings.GEMINI_API_KEY)
-            model = genai.GenerativeModel("gemini-flash-latest") 
+            model = genai.GenerativeModel("gemini-flash-latest")
             response = model.generate_content(prompt)
 
             raw_text = response.text.strip()
             raw_text = raw_text.replace("```json", "").replace("```", "").strip()
             ai_data = json.loads(raw_text)
+
+            # NEW - Module 7 logging (success)
+            AIRequestLog.objects.create(
+                customer=customer,
+                user=request.user,
+                log_type='question_suggestion',
+                prompt_text=prompt,
+                response_text=raw_text,
+                model_name='gemini-flash-latest',
+                status='success'
+            )
+
+            # NEW - Module 8 versioning
+            latest_version = AIOutputVersion.objects.filter(
+                customer=customer,
+                output_type='question_suggestion'
+            ).order_by('-version_number').first()
+            next_version = (latest_version.version_number + 1) if latest_version else 1
+
+            AIOutputVersion.objects.create(
+                customer=customer,
+                output_type='question_suggestion',
+                version_number=next_version,
+                response_json=ai_data,
+                model_used='gemini-flash-latest'
+            )
 
             return Response({
                 "status": "success",
@@ -293,6 +311,18 @@ class QuestionSuggestionsView(APIView):
                 questions.append(
                     {"question": "What additional coverage amount would you like to explore?", "reason": "Existing cover appears low compared to standard protection needs."}
                 )
+
+            # NEW - Module 7 logging (AI failed, fallback used)
+            AIRequestLog.objects.create(
+                customer=customer,
+                user=request.user,
+                log_type='question_suggestion',
+                prompt_text=prompt,
+                response_text='',
+                model_name='gemini-flash-latest',
+                status='error',
+                error_message=str(e)
+            )
 
             return Response({
                 "status": "success",
@@ -476,13 +506,13 @@ def create_customer(request):
         city = request.data.get('city')
         occupation = request.data.get('occupation')
         annual_income = request.data.get('annual_income')
-        
+
         if not all([full_name, age, gender, city]):
             return Response({
                 "status": "error",
                 "message": "full_name, age, gender, city are required"
             }, status=status.HTTP_400_BAD_REQUEST)
-        
+
         customer = Customer.objects.create(
             full_name=full_name,
             age=age,
@@ -492,7 +522,7 @@ def create_customer(request):
             annual_income=annual_income or 0,
             assigned_to=request.user
         )
-        
+
         return Response({
             "status": "success",
             "message": "Customer created successfully",
@@ -507,7 +537,7 @@ def create_customer(request):
                 "assigned_to": customer.assigned_to.username,
             }
         }, status=status.HTTP_201_CREATED)
-        
+
     except Exception as e:
         return Response({
             "status": "error",
@@ -527,7 +557,7 @@ def customer_detail(request, customer_id):
         customer = get_object_or_404(
             Customer.objects.filter(assigned_to=request.user), pk=customer_id
         )
-        
+
         return Response(
             {
                 "status": "success",
@@ -590,6 +620,17 @@ def generate_qualification_insights(request):
             triggered_rules=insights_data["triggered_rules"],
         )
 
+        # NEW - Module 7 logging (rule-based engine, not an LLM call — still logged per Module 7 spec)
+        AIRequestLog.objects.create(
+            customer=customer,
+            user=request.user,
+            log_type='qualification_insight',
+            prompt_text=f"customer_id={customer_id}",
+            response_text=str(insights_data),
+            model_name='rule-based-engine',
+            status='success'
+        )
+
         return Response(
             {
                 "status": "success",
@@ -605,6 +646,19 @@ def generate_qualification_insights(request):
         )
 
     except Exception as e:
+        # NEW - Module 7 logging (error)
+        if 'customer' in locals():
+            AIRequestLog.objects.create(
+                customer=customer,
+                user=request.user,
+                log_type='qualification_insight',
+                prompt_text=f"customer_id={customer_id}" if 'customer_id' in locals() else '',
+                response_text='',
+                model_name='rule-based-engine',
+                status='error',
+                error_message=str(e)
+            )
+
         return Response(
             {
                 "status": "error",
@@ -697,7 +751,7 @@ def get_qualification_insights_history(request, customer_id):
             },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
-    
+
 
 #MODULE 6: AI CHAT SERVICE
 
@@ -707,7 +761,7 @@ def get_qualification_insights_history(request, customer_id):
 def ai_chat(request): #function to handle AI chat requests
     """
     AI Chat Assistant Endpoint
-    
+
     POST /api/ai/chat/
     {
         "customer_id": 1,
@@ -718,27 +772,27 @@ def ai_chat(request): #function to handle AI chat requests
         # Get request data
         customer_id = request.data.get('customer_id')
         advisor_question = request.data.get('question', '').strip() #the .strip removes spaces from beginning/end
-        
+
         # if customer_id or question is missing, return error
         if not customer_id:
             return Response(
                 {"status": "error", "message": "customer_id is required"},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         if not advisor_question:
             return Response(
                 {"status": "error", "message": "question is required"},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         # Fetch customer (with security: only own customers)
         customer = get_object_or_404(
             Customer,
             id=customer_id,
             assigned_to=request.user
         )
-        
+
         # Build customer data for AI
         customer_data = {
             'id': customer.id,
@@ -773,14 +827,44 @@ def ai_chat(request): #function to handle AI chat requests
             ),
             'premium_budget': customer.premium_budget
         }
-        
+
         # Get chat service and generate response
         chat_service = get_chat_service()
         ai_response = chat_service.generate_chat_response(
             customer_data,
             advisor_question
         )
-        
+
+        # NEW - Module 7 logging (success)
+        AIRequestLog.objects.create(
+            customer=customer,
+            user=request.user,
+            log_type='chat',
+            prompt_text=advisor_question,
+            response_text=ai_response.get('answer', ''),
+            model_name=ai_response.get('model', 'gemini-flash-latest'),
+            status='success'
+        )
+
+        # NEW - Module 8 versioning
+        latest_version = AIOutputVersion.objects.filter(
+            customer=customer,
+            output_type='chat'
+        ).order_by('-version_number').first()
+        next_version = (latest_version.version_number + 1) if latest_version else 1
+
+        AIOutputVersion.objects.create(
+            customer=customer,
+            output_type='chat',
+            version_number=next_version,
+            response_json={
+                'question': advisor_question,
+                'answer': ai_response.get('answer', ''),
+                'model': ai_response.get('model', 'gemini-flash-latest')
+            },
+            model_used=ai_response.get('model', 'gemini-flash-latest')
+        )
+
         # Return response
         return Response(
             {
@@ -793,7 +877,7 @@ def ai_chat(request): #function to handle AI chat requests
             },
             status=status.HTTP_200_OK
         )
-    
+
     #if customer doesnt exist or not assigned to the user, return 404
     except Customer.DoesNotExist:
         return Response(
@@ -803,8 +887,21 @@ def ai_chat(request): #function to handle AI chat requests
             },
             status=status.HTTP_404_NOT_FOUND
         )
-    
+
     except Exception as e:
+        # NEW - Module 7 logging (error) — only if customer was resolved before failure
+        if 'customer' in locals():
+            AIRequestLog.objects.create(
+                customer=customer,
+                user=request.user,
+                log_type='chat',
+                prompt_text=advisor_question if 'advisor_question' in locals() else '',
+                response_text='',
+                model_name='gemini-flash-latest',
+                status='error',
+                error_message=str(e)
+            )
+
         return Response(
             {
                 "status": "error",
@@ -831,10 +928,10 @@ def get_ai_logs(request, customer_id):
             {"status": "error", "message": "Customer not found or access denied"},
             status=status.HTTP_404_NOT_FOUND
         )
-    
+
     logs = AIRequestLog.objects.filter(customer=customer)
     serializer = AIRequestLogSerializer(logs, many=True)
-    
+
     return Response({
         "status": "success",
         "message": f"Retrieved {logs.count()} AI logs",
@@ -856,25 +953,25 @@ def save_ai_output_version(request):
         output_type = request.data.get('output_type')
         response_json = request.data.get('response_json')
         model_used = request.data.get('model_used', 'gemini-pro')
-        
+
         if not all([customer_id, output_type, response_json]):
             return Response({
                 "status": "error",
                 "message": "customer_id, output_type, response_json are required"
             }, status=status.HTTP_400_BAD_REQUEST)
-        
+
         customer = get_object_or_404(
             Customer.objects.filter(assigned_to=request.user), pk=customer_id
         )
-        
+
         # Get next version number
         latest_version = AIOutputVersion.objects.filter(
             customer=customer,
             output_type=output_type
         ).order_by('-version_number').first()
-        
+
         next_version = (latest_version.version_number + 1) if latest_version else 1
-        
+
         output_version = AIOutputVersion.objects.create(
             customer=customer,
             output_type=output_type,
@@ -882,15 +979,15 @@ def save_ai_output_version(request):
             response_json=response_json,
             model_used=model_used
         )
-        
+
         serializer = AIOutputVersionSerializer(output_version)
-        
+
         return Response({
             "status": "success",
             "message": "AI output version saved",
             "data": serializer.data
         }, status=status.HTTP_201_CREATED)
-        
+
     except Exception as e:
         return Response({
             "status": "error",
@@ -914,10 +1011,10 @@ def get_ai_output_versions(request, customer_id):
             "status": "error",
             "message": "Customer not found or access denied"
         }, status=status.HTTP_404_NOT_FOUND)
-    
+
     versions = AIOutputVersion.objects.filter(customer=customer)
     serializer = AIOutputVersionSerializer(versions, many=True)
-    
+
     return Response({
         "status": "success",
         "message": f"Retrieved {versions.count()} AI output versions",
