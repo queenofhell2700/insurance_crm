@@ -53,6 +53,52 @@
             </div>
         {% endif %}
 
+        <!-- === START: Dashboard overview (added) === -->
+        <!-- CHANGED: Hide overview section when customer is selected -->
+        {% if not selected_customer %}
+        <div class="overview-section">
+            <div class="overview-header">
+                <h2>Dashboard overview</h2>
+                <span class="overview-subtitle">Last 30 days</span>
+            </div>
+
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-label">Total customers</div>
+                    <div class="metric-value">{{ total_customers|default:"248" }}</div>
+                    <div class="metric-change up">▲ 8.2% vs last month</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Active policies</div>
+                    <div class="metric-value">{{ active_policies|default:"312" }}</div>
+                    <div class="metric-change up">▲ 3.4% vs last month</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Qualified leads</div>
+                    <div class="metric-value">{{ qualified_leads|default:"37" }}</div>
+                    <div class="metric-change down">▼ 2.1% vs last month</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Conversion rate</div>
+                    <div class="metric-value">{{ conversion_rate|default:"64%" }}</div>
+                    <div class="metric-change up">▲ 5.0% vs last month</div>
+                </div>
+            </div>
+
+            <div class="charts-row">
+                <div class="chart-card">
+                    <h3>New customers by month</h3>
+                    <div class="chart-wrap"><canvas id="overviewBarChart"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <h3>Policy mix</h3>
+                    <div class="chart-wrap"><canvas id="overviewDonutChart"></canvas></div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        <!-- === END: Dashboard overview (added) === -->
+
         <div class="dashboard-container">
             <div class="dashboard-section">
                 {% if selected_customer %}
@@ -195,8 +241,38 @@
             </div>
         </div>
     </div>
+    <!-- === START: Dashboard overview charts (added) === -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    <script>
+    new Chart(document.getElementById('overviewBarChart'), {
+        type: 'bar',
+        data: {
+            labels: ['Mar','Apr','May','Jun','Jul','Aug'],
+            datasets: [{ data: [14,19,16,22,25,31], backgroundColor: '#2196F3', borderRadius: 4, maxBarThickness: 28 }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { grid: { display: false }, ticks: { color: '#666', font: { size: 11 } } },
+                y: { grid: { color: '#f0f0f0' }, ticks: { color: '#666', font: { size: 11 } } }
+            }
+        }
+    });
+
+    new Chart(document.getElementById('overviewDonutChart'), {
+        type: 'doughnut',
+        data: {
+            labels: ['Health', 'Life', 'Motor', 'Term'],
+            datasets: [{ data: [38, 27, 20, 15], backgroundColor: ['#2196F3','#7E57C2','#4CAF50','#FF9800'], borderWidth: 0 }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { color: '#666', font: { size: 11 }, boxWidth: 10, padding: 10 } } }
+        }
+    });
+    </script>
+    <!-- === END: Dashboard overview charts (added) === -->
     <script src="{% static 'dashboard.js' %}"></script>
-</body>
-</html>
 </body>
 </html>

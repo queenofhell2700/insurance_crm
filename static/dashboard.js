@@ -58,7 +58,7 @@ function sendChatMessage() {
         },
         body: JSON.stringify({
             customer_id: customerId,
-            message: message
+            question: message
         })
     })
     .then(response => {
@@ -67,7 +67,7 @@ function sendChatMessage() {
     })
     .then(data => {
         // Add AI response to chat
-        addChatMessage(data.response || data.message || 'No response', 'assistant');
+        addChatMessage(data.data.answer || 'No response', 'assistant');
     })
     .catch(error => {
         console.error('Chat error:', error);

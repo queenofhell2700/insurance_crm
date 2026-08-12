@@ -104,35 +104,48 @@
         <div class="policies-container">
             <div class="policies-header">
                 <h1>📋 Policies</h1>
-                <p>Manage insurance policies and coverage</p>
+                <p>All policies across your customers</p>
             </div>
 
-            <div class="coming-soon">
-                <div class="coming-soon-icon">🚀</div>
-                <h2>Coming Soon</h2>
-                <p>Policy management features are under development</p>
-                <p>We're building powerful tools to help you manage policies more effectively</p>
-            </div>
-
-            <div class="features-list">
-                <div class="feature-item">
-                    <strong>Policy Listing</strong>
-                    View and manage all customer policies in one place
-                </div>
-                <div class="feature-item">
-                    <strong>Policy Recommendations</strong>
-                    Get AI-powered recommendations for policy upgrades
-                </div>
-                <div class="feature-item">
-                    <strong>Coverage Analysis</strong>
-                    Analyze coverage gaps and optimization opportunities
-                </div>
-                <div class="feature-item">
-                    <strong>Policy Comparison</strong>
-                    Compare policies side-by-side for better decision making
-                </div>
-            </div>
+            <div id="policies-loading">Loading policies...</div>
+            <div id="policies-empty" style="display:none;">No policies found yet.</div>
+            <div id="policies-list" class="features-list"></div>
         </div>
     </div>
+
+    <script>
+        async function loadPolicies() {
+            const loadingEl = document.getElementById('policies-loading');
+            const emptyEl = document.getElementById('policies-empty');
+            const listEl = document.getElementById('policies-list');
+
+            try {
+                const res = await fetch('/api/v1/policies/', {
+                    headers: { 'Accept': 'application/json' },
+                    credentials: 'same-origin'
+                });
+                const result = await res.json();
+                loadingEl.style.display = 'none';
+
+                if (result.status !== 'success' || !result.data.length) {
+                    emptyEl.style.display = 'block';
+                    return;
+                }
+
+                listEl.innerHTML = result.data.map(p => `
+                    <div class="feature-item">
+                        <strong>${p.policy_number || 'No Number'} — ${p.policy_type}</strong>
+                        Customer: ${p.customer_name}<br>
+                        Status: ${p.status}<br>
+                        Premium: ₹${p.premium} | Coverage: ₹${p.coverage_amount}
+                    </div>
+                `).join('');
+            } catch (err) {
+                loadingEl.textContent = 'Failed to load policies.';
+                console.error(err);
+            }
+        }
+        document.addEventListener('DOMContentLoaded', loadPolicies);
+    </script>
 </body>
 </html>

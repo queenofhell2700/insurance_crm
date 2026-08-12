@@ -210,13 +210,23 @@
                                     <div class="detail-value">{{ customer.occupation|default:"N/A" }}</div>
                                 </div>
                                 <div class="detail-item">
+                                    <div class="detail-label">Policy</div>
+                                    <div class="detail-value">
+                                        {% if customer.insurance_covers.all %}
+                                            {% for policy in customer.insurance_covers.all %}{{ policy.policy_type }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                                        {% else %}
+                                            No policy
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="detail-item">
                                     <div class="detail-label">Family Members</div>
                                     <div class="detail-value">{{ customer.family_members.count }}</div>
                                 </div>
                             </div>
 
                             <div class="customer-card-footer">
-                                <a href="/dashboard/?customer_id={{ customer.id }}" class="btn-select">📊 View Dashboard</a>
+                                <a href="/dashboard/?customer_id={{ customer.id }}" class="btn-select">📄 View Customer Details</a>
                             </div>
                         </div>
                     {% endfor %}

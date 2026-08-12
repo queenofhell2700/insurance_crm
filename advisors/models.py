@@ -94,7 +94,9 @@ class ExistingInsuranceCover(models.Model):
     coverage_amount = models.DecimalField(max_digits=12, decimal_places=2)
     policy_type = models.CharField(max_length=50, choices=POLICY_TYPE_CHOICES)
     claim_history = models.TextField(blank=True, null=True)
-
+    
+    #added
+    policy_number = models.CharField(max_length=50, unique=True, null=True, blank=True) 
     def __str__(self):
         return f"{self.provider_name} - {self.customer.full_name}"
 
@@ -176,3 +178,72 @@ class AIOutputVersion(models.Model):
     
     def __str__(self):
         return f"{self.output_type} v{self.version_number} - {self.customer.full_name}"
+
+
+#added
+# ADD THIS TO YOUR models.py (at the end, after AIOutputVersion)
+
+class Policy(models.Model):
+    """
+    Model for policies created/sold by agents to customers.
+    Different from ExistingInsuranceCover (which are customer's existing policies).
+    """
+    POLICY_TYPE_CHOICES = [
+        ("Life", "Life Insurance"),
+        ("Health", "Health Insurance"),
+        ("Auto", "Auto Insurance"),
+        ("Home", "Home Insurance"),
+        ("Travel", "Travel Insurance"),
+        ("Other", "Other"),
+    ]
+    
+    STATUS_CHOICES = [
+        ("Draft", "Draft"),
+        ("Quoted", "Quoted"),
+        ("Proposed", "Proposed"),
+        ("Active", "Active"),
+        ("Lapsed", "Lapsed"),
+        ("Declined", "Declined"),
+    ]
+
+    # Core fields
+    customer = models.ForeignKey(
+        Customer, on_delete=models.CASCADE, related_name="policies"
+    )
+    agent = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="created_policies"
+    )  # Agent who created this policy
+    
+    # Policy details
+    policy_number = models.CharField(max_length=50, unique=True, null=True, blank=True)
+    policy_type = models.CharField(max_length=20, choices=POLICY_TYPE_CHOICES)
+    description = models.TextField(blank=True, null=True)
+    
+    # Financial details
+    premium = models.DecimalField(max_digits=12, decimal_places=2)
+    coverage_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    term_years = models.IntegerField(default=20)
+    
+    # Dates
+    proposal_date = models.DateField(auto_now_add=True)
+    start_date = models.DateField(null=True, blank=True)
+    end_date = models.DateField(null=True, blank=True)
+    
+    # Status
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="Draft")
+    notes = models.TextField(blank=True, null=True)
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['agent', '-created_at']),
+            models.Index(fields=['customer', '-created_at']),
+            models.Index(fields=['status']),
+        ]
+
+    def __str__(self):
+        return f"{self.customer.full_name} - {self.policy_type} ({self.status})"

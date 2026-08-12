@@ -1,4 +1,3 @@
-# advisors/urls.py
 from django.urls import path
 from rest_framework.authtoken.views import obtain_auth_token
 from .views import (
@@ -11,6 +10,8 @@ from .views import (
     ResetPasswordView,
     MissingInformationView,
     customer_detail,
+    list_customer_policies,  # NEW - Task 3: list policies for a customer
+    list_all_policies,  # NEW - add this
     generate_qualification_insights,
     get_qualification_insights,
     get_qualification_insights_history,
@@ -19,13 +20,13 @@ from .views import (
     save_ai_output_version,  # NEW - Module 8
     get_ai_output_versions,  # NEW - Module 8
     customers_list,  # NEW - Customers page
-    policies_list,  # NEW - Policies page
+    policies_view,  # NEW - add this
 )
 
 urlpatterns = [
     # Page routes (Django templates)
     path("customers/", customers_list, name="customers"),
-    path("policies/", policies_list, name="policies"),
+    path("policies/", policies_view, name="policies"),  # NEW - add this
     
     # API routes
     path("api/v1/auth/signup/", SignupView.as_view(), name="api_signup"),
@@ -35,6 +36,8 @@ urlpatterns = [
     
     path("api/v1/customers/create/", create_customer, name="api_create_customer"),
     path("api/v1/customers/<int:customer_id>/", customer_detail, name="api_customer_detail"),
+    path("api/v1/customers/<int:customer_id>/policies/", list_customer_policies, name="api_list_customer_policies"),  # NEW - Task 3
+    path("api/v1/policies/", list_all_policies, name="api_list_all_policies"),  # NEW - add this
     
     path("api/v1/ai/context/<int:customer_id>/", CustomerContextView.as_view(), name="api_customer_context"),
     path("api/v1/ai/question-suggestions/", QuestionSuggestionsView.as_view(), name="api_question_suggestions"),

@@ -18,7 +18,8 @@ from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
-from .models import Customer
+#from .models import Customer
+from .models import Customer, Policy, ExistingInsuranceCover #added
 from .serializers import AIOutputVersionSerializer, UserSerializer, LoginSerializer
 
 #MODULE 5 IMPORTS
@@ -544,6 +545,83 @@ def create_customer(request):
             "message": str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    """return Response(
+            {
+                "status": "error",
+                "message": str(e),
+                "data": None,
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )"""
+
+
+
+"""@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def list_all_policies(request):
+    try:
+        all_covers = ExistingInsuranceCover.objects.filter(
+            customer__assigned_to=request.user
+        ).select_related("customer")
+
+        policies_data = [
+            {
+                "provider_name": c.provider_name,
+                "policy_type": c.policy_type,
+                "coverage_amount": str(c.coverage_amount),
+                "customer_name": c.customer.full_name,
+            }
+            for c in all_covers
+        ]
+
+        return Response({
+            "status": "success",
+            "data": policies_data,
+        }, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({
+            "status": "error",
+            "message": str(e),
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)"""
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def list_all_policies(request):
+    try:
+        all_covers = ExistingInsuranceCover.objects.filter(
+            customer__assigned_to=request.user
+        ).select_related("customer")
+
+        grouped = {}
+        for c in all_covers:
+            key = c.policy_number or f"__no_number_{c.id}"
+            if key not in grouped:
+                grouped[key] = {
+                    "policy_number": c.policy_number,
+                    "provider_name": c.provider_name,
+                    "policy_type": c.policy_type,
+                    "customers": [],
+                }
+            grouped[key]["customers"].append({
+                "name": c.customer.full_name,
+                "coverage_amount": str(c.coverage_amount),
+            })
+
+        policies_data = list(grouped.values())
+
+        return Response({
+            "status": "success",
+            "data": policies_data,
+        }, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({
+            "status": "error",
+            "message": str(e),
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+# NEW - Task 3: List policies for a customer
+
 
 #MODULE 5: QUALIFICATION INSIGHTS
 @api_view(["GET"])
@@ -585,6 +663,51 @@ def customer_detail(request, customer_id):
                 "status": "error",
                 "message": str(e),
                 "data": None
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+
+# NEW - Task 3: List policies for a customer
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def list_customer_policies(request, customer_id):
+    """
+    GET /api/customer/<customer_id>/policies/
+    List all insurance policies (ExistingInsuranceCover) for a customer
+    """
+    try:
+        customer = get_object_or_404(
+            Customer.objects.filter(assigned_to=request.user), pk=customer_id
+        )
+
+        policies = customer.insurance_covers.all()
+
+        policies_data = [
+            {
+                "id": policy.id,
+                "provider_name": policy.provider_name,
+                "coverage_amount": str(policy.coverage_amount),
+                "policy_type": policy.policy_type,
+                "claim_history": policy.claim_history,
+            }
+            for policy in policies
+        ]
+
+        return Response(
+            {
+                "status": "success",
+                "message": f"Retrieved {len(policies_data)} policies",
+                "data": policies_data,
+            },
+            status=status.HTTP_200_OK,
+        )
+    except Exception as e:
+        return Response(
+            {
+                "status": "error",
+                "message": str(e),
+                "data": None,
             },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
@@ -1028,5 +1151,5 @@ def customers_list(request):
     return render(request, 'customers.html', {'customers': customers, 'customers_count': customers.count()})
 
 @login_required(login_url='login')
-def policies_list(request):
-    return render(request, 'policies.html', {'policies': [], 'policies_count': 0})
+def policies_view(request):
+    return render(request, 'policies.html')
