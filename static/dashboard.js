@@ -1,5 +1,114 @@
 // Dashboard JavaScript - Wires up chat, insights, and customer interactions
 
+// ============================================
+// ADDED: Dashboard Stats - Dynamic Data Loading
+// ============================================
+
+/**
+ * WHY: These functions fetch REAL data from your database
+ * and update the dashboard overview numbers dynamically
+ */
+
+// Function to load dashboard stats from API
+async function loadDashboardStats() {
+    try {
+        const response = await fetch('/api/dashboard/stats/');
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+            const data = result.data;
+            
+            // Update the 4 main metric cards
+            const totalCustomersEl = document.querySelector('.metric-card:nth-child(1) .metric-value');
+            const activePoliciesEl = document.querySelector('.metric-card:nth-child(2) .metric-value');
+            const qualifiedLeadsEl = document.querySelector('.metric-card:nth-child(3) .metric-value');
+            const conversionRateEl = document.querySelector('.metric-card:nth-child(4) .metric-value');
+            
+            // Update values
+            if (totalCustomersEl) totalCustomersEl.textContent = data.total_customers;
+            if (activePoliciesEl) activePoliciesEl.textContent = data.active_policies;
+            
+            // Update growth percentages
+            const growthSpans = document.querySelectorAll('.metric-change');
+            if (growthSpans.length >= 4) {
+                // Customer growth
+                growthSpans[0].textContent = data.customer_growth >= 0 ? 
+                    `▲ ${data.customer_growth}% vs last month` : 
+                    `▼ ${Math.abs(data.customer_growth)}% vs last month`;
+                growthSpans[0].className = `metric-change ${data.customer_growth >= 0 ? 'up' : 'down'}`;
+                
+                // Policy growth
+                growthSpans[1].textContent = data.policy_growth >= 0 ? 
+                    `▲ ${data.policy_growth}% vs last month` : 
+                    `▼ ${Math.abs(data.policy_growth)}% vs last month`;
+                growthSpans[1].className = `metric-change ${data.policy_growth >= 0 ? 'up' : 'down'}`;
+            }
+        }
+    } catch (error) {
+        console.error('Error loading dashboard stats:', error);
+    }
+}
+
+// Function to load monthly customer data for the bar chart
+async function loadMonthlyChartData() {
+    try {
+        const response = await fetch('/api/dashboard/monthly-customers/');
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+            const data = result.data;
+            
+            // Update the bar chart
+            const chartCanvas = document.getElementById('overviewBarChart');
+            if (chartCanvas && window.barChart) {
+                window.barChart.data.labels = data.labels;
+                window.barChart.data.datasets[0].data = data.values;
+                window.barChart.update();
+            }
+        }
+    } catch (error) {
+        console.error('Error loading monthly chart data:', error);
+    }
+}
+
+// Function to load policy mix data for the donut chart
+async function loadPolicyMixChartData() {
+    try {
+        const response = await fetch('/api/dashboard/policy-mix/');
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+            const data = result.data;
+            
+            // Update the donut chart
+            const chartCanvas = document.getElementById('overviewDonutChart');
+            if (chartCanvas && window.donutChart) {
+                window.donutChart.data.labels = data.labels;
+                window.donutChart.data.datasets[0].data = data.values;
+                window.donutChart.update();
+            }
+        }
+    } catch (error) {
+        console.error('Error loading policy mix chart data:', error);
+    }
+}
+//end of added chunk
+
+// document.addEventListener('DOMContentLoaded', function() {
+//     // Initialize chat functionality
+//     initializeChatHandler();
+//     
+//     // Load customer list if sidebar exists
+//     loadCustomerList();
+//     
+//     // Auto-focus chat input
+//     const chatInput = document.getElementById('chatInput');
+//     if (chatInput) {
+//         chatInput.focus();
+//     }
+// });
+
+
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize chat functionality
     initializeChatHandler();
@@ -12,6 +121,14 @@ document.addEventListener('DOMContentLoaded', function() {
     if (chatInput) {
         chatInput.focus();
     }
+    
+    // ===== ADDED: Load dashboard stats dynamically =====
+    loadDashboardStats();
+    loadMonthlyChartData();
+    loadPolicyMixChartData();
+    
+    // Auto-refresh stats every 60 seconds (optional)
+    setInterval(loadDashboardStats, 60000);
 });
 
 // ============ CHAT FUNCTIONALITY ============

@@ -1,4 +1,5 @@
 from django.urls import path
+from . import views  #added
 from rest_framework.authtoken.views import obtain_auth_token
 from .views import (
     ai_chat,
@@ -52,4 +53,12 @@ urlpatterns = [
     path("api/v1/token/", obtain_auth_token, name="api_token_auth"),
     path("api/v1/ai/output-versions/save/", save_ai_output_version, name="api_save_ai_output_version"),
     path("api/v1/customers/<int:customer_id>/ai-output-versions/", get_ai_output_versions, name="api_get_ai_output_versions"),
+
+   
+    # Dashboard graph endpoints
+    path('api/dashboard/stats/', views.dashboard_stats, name='dashboard_stats'),
+    path('api/dashboard/monthly-customers/', views.monthly_customers_data, name='monthly_customers'),
+    path('api/dashboard/policy-mix/', views.policy_mix_data, name='policy_mix'),
+    path('api/customers/list/', views.all_customers_list_api, name='all_customers_list'),
+    path('api/customer/<int:customer_id>/', views.customer_detail_api, name='customer_detail_api'),
 ]

@@ -585,7 +585,7 @@ def list_all_policies(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)"""
 
 
-@api_view(["GET"])
+"""@api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def list_all_policies(request):
     try:
@@ -609,6 +609,49 @@ def list_all_policies(request):
             })
 
         policies_data = list(grouped.values())
+
+        return Response({
+            "status": "success",
+            "data": policies_data,
+        }, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({
+            "status": "error",
+            "message": str(e),
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)"""
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def list_all_policies(request):
+    """Get all policies for logged-in agent"""
+    try:
+        """policies = Policy.objects.filter(
+            agent=request.user
+        ).select_related("customer").order_by('-created_at')"""
+
+        policies = (
+                Policy.objects
+                .exclude(status='Draft')
+                .select_related("customer")
+                .order_by('-created_at')
+            )
+
+        policies_data = [
+            {
+                "id": policy.id,
+                "policy_number": policy.policy_number or "No Number",
+                "policy_type": policy.policy_type,
+                "customer_name": policy.customer.full_name,
+                "customer_id": policy.customer.id,
+                "status": policy.status,
+                "premium": str(policy.premium),
+                "coverage_amount": str(policy.coverage_amount),
+                "term_years": policy.term_years,
+                "description": policy.description,
+            }
+            for policy in policies
+        ]
 
         return Response({
             "status": "success",
@@ -1153,3 +1196,254 @@ def customers_list(request):
 @login_required(login_url='login')
 def policies_view(request):
     return render(request, 'policies.html')
+
+
+
+#added for the dashboard graphs
+# ===== DASHBOARD API ENDPOINTS =====
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def dashboard_stats(request):
+    """
+    WHY: This gets REAL data from your database instead of hardcoded numbers.
+    It calculates:
+    - Total customers assigned to this advisor
+    - Active policies (status = 'Active')
+    - Month-over-month growth for both
+    """
+    try:
+        # Get only this advisor's customers (security)
+        customers = Customer.objects.filter(assigned_to=request.user)
+        
+        # 1. TOTAL CUSTOMERS - Count all customers assigned to this user
+        total_customers = customers.count()
+        
+        # 2. ACTIVE POLICIES - Count only policies with status 'Active'
+        active_policies = Policy.objects.filter(
+            agent=request.user,
+            status='Active'
+        ).count()
+        
+        # 3. CUSTOMER GROWTH - Compare last 30 days vs previous 30 days
+        from datetime import datetime, timedelta
+        today = datetime.now()
+        last_month_start = today - timedelta(days=30)
+        previous_month_start = today - timedelta(days=60)
+        
+        customers_last_month = customers.filter(
+            created_at__gte=last_month_start
+        ).count()
+        
+        customers_prev_month = customers.filter(
+            created_at__gte=previous_month_start,
+            created_at__lt=last_month_start
+        ).count()
+        
+        # Calculate percentage growth
+        if customers_prev_month > 0:
+            customer_growth = round(
+                ((customers_last_month - customers_prev_month) / customers_prev_month * 100), 
+                1
+            )
+        else:
+            customer_growth = 0
+        
+        # 4. POLICY GROWTH - Same calculation but for policies
+        policies_last_month = Policy.objects.filter(
+            agent=request.user,
+            created_at__gte=last_month_start
+        ).count()
+        
+        policies_prev_month = Policy.objects.filter(
+            agent=request.user,
+            created_at__gte=previous_month_start,
+            created_at__lt=last_month_start
+        ).count()
+        
+        if policies_prev_month > 0:
+            policy_growth = round(
+                ((policies_last_month - policies_prev_month) / policies_prev_month * 100),
+                1
+            )
+        else:
+            policy_growth = 0
+        
+        # Return data as JSON
+        return Response({
+            "status": "success",
+            "data": {
+                "total_customers": total_customers,
+                "customer_growth": customer_growth,
+                "active_policies": active_policies,
+                "policy_growth": policy_growth,
+            }
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({
+            "status": "error",
+            "message": str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def monthly_customers_data(request):
+    """
+    WHY: This provides data for the bar chart showing new customers by month.
+    Instead of hardcoding [5, 12, 8, 15, 22, 30], it queries the database.
+    """
+    try:
+        from datetime import datetime
+        
+        # These match your dashboard image: Mar, Apr, May, Jun, Jul, Aug
+        months = ['Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug']
+        month_numbers = {'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6, 'Jul': 7, 'Aug': 8}
+        
+        # Get customers for this advisor
+        customers = Customer.objects.filter(assigned_to=request.user)
+        
+        # Count customers created in each month
+        data = []
+        current_year = datetime.now().year
+        
+        for month in months:
+            count = customers.filter(
+                created_at__month=month_numbers[month],
+                created_at__year=current_year
+            ).count()
+            data.append(count)
+        
+        return Response({
+            "status": "success",
+            "data": {
+                "labels": months,
+                "values": data
+            }
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({
+            "status": "error",
+            "message": str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def policy_mix_data(request):
+    """
+    WHY: This provides data for the policy mix pie chart.
+    It counts policies of each type (Health, Life, Motor, Term).
+    """
+    try:
+        # These match your dashboard image
+        policy_types = ['Health', 'Life', 'Motor', 'Term']
+        
+        # Count policies of each type for this advisor
+        data = []
+        for p_type in policy_types:
+            count = Policy.objects.filter(
+                agent=request.user,
+                policy_type=p_type
+            ).count()
+            data.append(count)
+        
+        return Response({
+            "status": "success",
+            "data": {
+                "labels": policy_types,
+                "values": data
+            }
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({
+            "status": "error",
+            "message": str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def all_customers_list_api(request):
+    """
+    WHY: This populates the "Select a customer" dropdown with real customers.
+    Previously it was hardcoded or empty - now it shows actual customers.
+    """
+    try:
+        # Get all customers for this advisor, only need id and name
+        customers = Customer.objects.filter(
+            assigned_to=request.user
+        ).values('id', 'full_name')
+        
+        return Response({
+            "status": "success",
+            "data": list(customers)
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({
+            "status": "error",
+            "message": str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def customer_detail_api(request, customer_id):
+    """
+    WHY: This shows customer details when selected from dropdown.
+    Previously it showed hardcoded "John Doe" - now it shows real data.
+    """
+    try:
+        # Get the specific customer (ensuring it belongs to this advisor)
+        customer = get_object_or_404(
+            Customer.objects.filter(assigned_to=request.user),
+            id=customer_id
+        )
+        
+        # Get family members count
+        family_count = customer.family_members.count()
+        
+        # Get policies count
+        policies_count = customer.policies.filter(agent=request.user).count()
+        
+        # Get PED (Pre-Existing Diseases) list
+        ped_list = [d.disease_name for d in customer.medical_disclosures.all()]
+        
+        # Get missing information
+        missing_info = []
+        if customer.premium_budget is None:
+            missing_info.append("Premium Budget")
+        if not customer.preferred_hospitals:
+            missing_info.append("Preferred Hospitals")
+        if not customer.insurance_covers.exists():
+            missing_info.append("Existing Insurance Cover")
+        if not customer.family_members.exists():
+            missing_info.append("Family Information")
+        
+        # Get latest qualification insight if exists
+        latest_insight = customer.qualification_insights.first()
+        
+        return Response({
+            "status": "success",
+            "data": {
+                "id": customer.id,
+                "name": customer.full_name,
+                "age": customer.age,
+                "city": customer.city,
+                "family_count": family_count,
+                "policies_count": policies_count,
+                "ped_list": ped_list,
+                "missing_info": missing_info,
+                "risk_band": latest_insight.risk_band if latest_insight else "Not assessed",
+                "insights": latest_insight.insights if latest_insight else [],
+            }
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({
+            "status": "error",
+            "message": str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
